@@ -1,0 +1,1725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Model Intelligence &amp; Cost Index</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<style>*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html{font-size:14px}body{background:#f5f4f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useContext, createContext, useMemo, useEffect, useRef } = React;
+
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+const ThemeCtx = createContext();
+const LIGHT = {
+  dark:false, pageBg:"#f5f4f0", surfaceBg:"#ffffff", raisedBg:"#f0eeea",
+  headerBg:"#eceae5", altRow:"#f8f7f4",
+  text:"#0f0f0e", textSub:"#3a3a37", textMuted:"#4a4a46", textFaint:"#6b6b66",
+  border:"rgba(0,0,0,0.12)", borderMd:"rgba(0,0,0,0.20)",
+  elite:"#14532d", high:"#92400e", mid:"#1e3a8a", efficient:"#4c1d95", compact:"#4b5563", local:"#0f4c75",
+  barTrack:"#e5e7eb",
+  calloutBg:"#f0f9ff", calloutBdr:"#bae6fd", calloutLabel:"#0c4a6e",
+  refreshBdr:"#166534", refreshBg:"#f0fdf4", refreshTxt:"#14532d",
+  localBadge:"#0f4c75", localBadgeBg:"#e0f2fe",
+};
+const DARK = {
+  dark:true, pageBg:"#07090f", surfaceBg:"#0d1220", raisedBg:"#111827",
+  headerBg:"#0a0e17", altRow:"#09101d",
+  text:"#f1f5f9", textSub:"#cbd5e1", textMuted:"#94a3b8", textFaint:"#64748b",
+  border:"rgba(255,255,255,0.09)", borderMd:"rgba(255,255,255,0.15)",
+  elite:"#4ade80", high:"#fbbf24", mid:"#60a5fa", efficient:"#a78bfa", compact:"#9ca3af", local:"#38bdf8",
+  barTrack:"#1e293b",
+  calloutBg:"#0d1525", calloutBdr:"#1e3a5f", calloutLabel:"#4ade80",
+  refreshBdr:"#4ade80", refreshBg:"#052e16", refreshTxt:"#4ade80",
+  localBadge:"#38bdf8", localBadgeBg:"rgba(56,189,248,0.15)",
+};
+function useTheme() { return useContext(ThemeCtx); }
+
+const FC_L = { Anthropic:"#c2410c",OpenAI:"#065f46",Google:"#1d4ed8",Meta:"#0369a1",Mistral:"#7c3aed",Alibaba:"#059669",DeepSeek:"#0e7490",xAI:"#4c1d95",Cohere:"#9a3412",MiniMax:"#be185d",Zhipu:"#3730a3",Moonshot:"#6d28d9",Xiaomi:"#c2410c",Baidu:"#1d4ed8",Amazon:"#ea580c",Microsoft:"#1d4ed8",IBM:"#1d4ed8",Nvidia:"#16a34a",Writer:"#7c3aed",Inflection:"#0891b2",Perplexity:"#0e7490",AI21:"#7c3aed",NovitaAI:"#0369a1",Together:"#059669",Fireworks:"#c2410c",Groq:"#059669",LiquidAI:"#0891b2",Tencent:"#0369a1",Stepfun:"#7c3aed",Local:"#0f4c75" };
+const FC_D = { Anthropic:"#fb923c",OpenAI:"#34d399",Google:"#60a5fa",Meta:"#38bdf8",Mistral:"#c084fc",Alibaba:"#34d399",DeepSeek:"#22d3ee",xAI:"#a78bfa",Cohere:"#fb923c",MiniMax:"#f472b6",Zhipu:"#818cf8",Moonshot:"#c084fc",Xiaomi:"#f97316",Baidu:"#60a5fa",Amazon:"#fb923c",Microsoft:"#60a5fa",IBM:"#60a5fa",Nvidia:"#4ade80",Writer:"#c084fc",Inflection:"#22d3ee",Perplexity:"#22d3ee",AI21:"#c084fc",NovitaAI:"#38bdf8",Together:"#34d399",Fireworks:"#fb923c",Groq:"#34d399",LiquidAI:"#22d3ee",Tencent:"#38bdf8",Stepfun:"#c084fc",Local:"#38bdf8" };
+
+// ── Hardware profiles ─────────────────────────────────────────────────────────
+// Two local inference machines with per-model TPS benchmarks
+// Cost amortization: price / (3yr × 365 days × hrs_per_day × 3600 sec) × 1M tokens
+//
+// HP ZBook Ultra G1a 128GB: Ryzen AI Max+ PRO 395, Radeon 8060S, 96GB iGPU VRAM
+//   Memory bandwidth: ~215 GB/s. TPS source: llama.cpp Vulkan/RADV community benchmarks Jun 2026
+//
+// MacBook Pro 14 M5 Max 128GB: 18-core CPU, 40-core GPU, 614 GB/s unified memory bandwidth
+//   TPS source: MLX + llama.cpp Metal benchmarks, hardware-corner.net + aiproductivity.ai Jun 2026
+
+const HARDWARE = {
+  zbook: {
+    id: "zbook",
+    label: "HP ZBook Ultra G1a",
+    sub: "128GB · Ryzen AI Max+ PRO 395 · Radeon 8060S · 96GB iGPU VRAM",
+    chip: "AMD Ryzen AI Max+ PRO 395",
+    mem: "128GB LPDDR5X · ~215 GB/s BW",
+    price: 7000,
+    years: 3,
+    color: "#d4883a",
+    icon: "🟧",
+    runtime: "llama.cpp Vulkan/RADV",
+    note: "Strix Halo iGPU; strong on MoE models due to 96GB GPU-accessible VRAM",
+  },
+  macbook: {
+    id: "macbook",
+    label: "MacBook Pro 14 M5 Max",
+    sub: "128GB · Apple M5 Max · 40-core GPU · 614 GB/s BW",
+    chip: "Apple M5 Max",
+    mem: "128GB unified · 614 GB/s BW",
+    price: 5100,
+    years: 3,
+    color: "#6366f1",
+    icon: "🍎",
+    runtime: "MLX / llama.cpp Metal",
+    note: "~2.9x higher memory BW than ZBook; faster on dense models, especially small/mid",
+  },
+};
+
+// Per-model TPS on each hardware platform
+// zbook: llama.cpp Vulkan/RADV on Strix Halo 128GB (community benchmarks Jun 2026)
+// macbook: MLX (preferred) or llama.cpp Metal on M5 Max 128GB (hardware-corner + aiproductivity Jun 2026)
+// All Q4_K_M unless noted
+const LOCAL_MODELS = [
+  // SOURCE: Onyx Self-Hosted LLM Leaderboard. ctx = context window in K tokens.
+  // S-tier
+  { family:"Moonshot", model:"Kimi K2.5",             quant:"Q2_K (min ~240GB)", ctx:262,  score:58.5, params:"1T/42B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:true,  hfUrl:"https://huggingface.co/moonshotai/Kimi-K2.5",                                note:"1T MoE / 42B active. Needs ~240GB+. GPQA 87.6, AIME 96.1, SWE 76.8. Multi-GPU only." },
+  { family:"Zhipu",    model:"GLM-5",                 quant:"Q2_K (~386GB)",     ctx:200,  score:57.8, params:"744B", arch:"Dense", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/THUDM/GLM-4",                                          note:"744B dense. GPQA 86.0, Arena 1454. Requires ~386GB. Not runnable on 128GB alone." },
+  { family:"MiniMax",  model:"MiniMax M2.5",          quant:"Q4_K_M (~117GB)",   ctx:205,  score:57.2, params:"230B/10B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/MiniMaxAI/MiniMax-Text-01",                             note:"230B / 10B active MoE. Just over 128GB at INT4. GPQA 85.2, SWE 80.2." },
+  { family:"Alibaba",  model:"Qwen3.5 397B-A17B",     quant:"Q2_K (~207GB)",     ctx:262,  score:56.8, params:"397B/17B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:true,  hfUrl:"https://huggingface.co/Qwen/Qwen3-235B-A22B",                                 note:"397B / 17B active. ~207GB at INT4. MMLU-Pro 87.8, GPQA 88.4, Arena 1450. Multi-GPU only." },
+  // A-tier
+  { family:"DeepSeek", model:"DeepSeek R1 671B",      quant:"Q2_K (~351GB)",     ctx:128,  score:56.2, params:"671B", arch:"Dense", tps:{zbook:null,macbook:null}, reasoning:true,  hfUrl:"https://huggingface.co/deepseek-ai/DeepSeek-R1",                              note:"671B dense. MMLU-Pro 84.0, GPQA 71.5, SWE 49.2. Flagship reasoning. Multi-GPU only." },
+  { family:"Zhipu",    model:"GLM-4.7",               quant:"Q2_K (~180GB)",     ctx:200,  score:55.8, params:"355B/32B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:true,  hfUrl:"https://huggingface.co/THUDM/GLM-4",                                          note:"355B MoE / 32B active. MMLU-Pro 84.3, GPQA 85.7, Arena 1441, SWE 73.8. Strong coder." },
+  { family:"Mistral",  model:"Mistral Large 3 675B",  quant:"Q2_K (~355GB)",     ctx:256,  score:55.2, params:"675B", arch:"Dense", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/mistralai/Mistral-Large-Instruct-2411",                 note:"675B dense. HumanEval 92.0, LiveCodeBench 82.8. Multi-GPU only." },
+  { family:"OpenAI",   model:"GPT-oss 120B",          quant:"Q4_K_M (~62GB)",    ctx:128,  score:54.8, params:"117B", arch:"Dense", tps:{zbook:53, macbook:72 },  reasoning:false, hfUrl:"https://huggingface.co/openai/gpt-oss-120b",                                   note:"117B dense. Fits 128GB! MMLU-Pro 90.0, GPQA 80.9, SWE 62.4. Apache 2.0." },
+  { family:"DeepSeek", model:"DeepSeek V3.2 685B",    quant:"Q2_K (~351GB)",     ctx:130,  score:54.2, params:"685B/37B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/deepseek-ai/DeepSeek-V3",                              note:"685B dense. MMLU-Pro 85.0, Arena 1423, SWE 67.8. Multi-GPU only." },
+  { family:"Stepfun",  model:"Step-3.5-Flash 196B",   quant:"Q4_K_M (~102GB)",   ctx:262,  score:53.8, params:"196B/20B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/stepfun-ai/Step-3.5-Flash",                             note:"196B MoE. Just over 128GB at INT4. MMLU-Pro 85.8, SWE 74.4, AIME 99.8." },
+  { family:"Xiaomi",   model:"MiMo-V2-Flash 309B",    quant:"Q2_K (~159GB)",     ctx:262,  score:53.2, params:"309B/30B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:true,  hfUrl:"https://huggingface.co/XiaomiMiMo/MiMo-VL-7B-RL",                            note:"309B MoE. MMLU-Pro 84.9, GPQA 83.7, SWE 73.4. Strong coder + reasoner." },
+  { family:"Alibaba",  model:"Qwen3-Coder-Next 80B",  quant:"Q4_K_M (~42GB)",    ctx:256,  score:52.8, params:"80B/3B", arch:"MoE", tps:{zbook:43, macbook:58 },  reasoning:true,  hfUrl:"https://huggingface.co/Qwen/Qwen3-Coder",                                      note:"80B MoE / 3B active. Fits 128GB. MMLU-Pro 78.4, SWE 70.6, HumanEval 94.1." },
+  { family:"Alibaba",  model:"Qwen3.5-9B",            quant:"Q4_K_M (~5GB)",     ctx:262,  score:52.4, params:"9B", arch:"Dense", tps:{zbook:118,macbook:196},  reasoning:true,  hfUrl:"https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",                             note:"9B. MMLU-Pro 82.5, GPQA 81.7, LiveCodeBench 65.6. Punches above weight." },
+  { family:"Alibaba",  model:"Qwen3.5-4B",            quant:"Q4_K_M (~2GB)",     ctx:262,  score:51.8, params:"4B", arch:"Dense", tps:{zbook:278,macbook:412},  reasoning:true,  hfUrl:"https://huggingface.co/Qwen/Qwen2.5-3B-Instruct",                             note:"4B. MMLU-Pro 79.1, GPQA 76.2. Exceptional for size. Fastest local option." },
+  // B-tier
+  { family:"Meta",     model:"Llama 4 Maverick 400B", quant:"Q2_K (~206GB)",     ctx:1000, score:50.8, params:"400B/17B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct",        note:"400B MoE. ~206GB at INT4. MMLU-Pro 80.5, GPQA 69.8. 1M context. Multi-GPU only." },
+  { family:"Nvidia",   model:"Nemotron Ultra 253B",   quant:"Q4_K_M (~135GB)",   ctx:128,  score:50.2, params:"253B", arch:"Dense", tps:{zbook:null,macbook:null}, reasoning:true,  hfUrl:"https://huggingface.co/nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",             note:"253B dense. Just over 128GB. GPQA 76.0, IFEval 89.5, AIME 72.5." },
+  { family:"Alibaba",  model:"Qwen3-235B-A22B",       quant:"Q4_K_M (~120GB)",   ctx:131,  score:49.8, params:"235B/22B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:true,  hfUrl:"https://huggingface.co/Qwen/Qwen3-235B-A22B",                                 note:"235B / 22B active. ~120GB at INT4 — at 128GB limit. GPQA 71.1." },
+  { family:"Tencent",  model:"Hunyuan 2.0 406B",      quant:"Q2_K (~215GB)",     ctx:256,  score:49.5, params:"406B/52B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/tencent/Hunyuan-Large",                                 note:"406B MoE. ~215GB at INT4. SWE 53.0. Multi-GPU only. Apache 2.0." },
+  { family:"OpenAI",   model:"GPT-oss 20B",           quant:"Q4_K_M (~11GB)",    ctx:128,  score:49.2, params:"20B", arch:"Dense", tps:{zbook:96, macbook:162},  reasoning:false, hfUrl:"https://huggingface.co/openai/gpt-oss-20b",                                    note:"20B dense. MMLU-Pro 85.3, GPQA 71.5, AIME 98.7. Apache 2.0. Very capable for size." },
+  { family:"Meta",     model:"Llama 4 Scout 109B",    quant:"Q4_K_M (~58GB)",    ctx:10000,score:48.5, params:"109B/17B", arch:"MoE", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct",            note:"109B / 17B active MoE. 58GB — fits. MMLU-Pro 74.3. 10M context window!" },
+  { family:"Mistral",  model:"Devstral-2-123B",       quant:"Q4_K_M (~65GB)",    ctx:256,  score:48.2, params:"123B", arch:"Dense", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/mistralai/Devstral-Small-2505",                        note:"123B. 65GB — fits. SWE-bench 72.2. Best SWE score in 128GB. Modified MIT." },
+  // C-tier
+  { family:"Meta",     model:"Llama 3.3 70B Instruct",quant:"Q4_K_M (~38GB)",    ctx:131,  score:45.5, params:"70B", arch:"Dense", tps:{zbook:14, macbook:31 },  reasoning:false, hfUrl:"https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",                    note:"70B dense. 38GB at INT4. MMLU-Pro 68.9, IFEval 92.1, HumanEval 88.4." },
+  { family:"DeepSeek", model:"DeepSeek R1 Distill 70B",quant:"Q4_K_M (~36GB)",   ctx:128,  score:45.2, params:"70B", arch:"Dense", tps:{zbook:12, macbook:29 },  reasoning:true,  hfUrl:"https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B",          note:"70B reasoning distill. GPQA 65.2, HumanEval 86.0. Mac BW advantage on dense 70B." },
+  { family:"Alibaba",  model:"Qwen 2.5-72B",          quant:"Q4_K_M (~37GB)",    ctx:131,  score:44.8, params:"72B", arch:"Dense", tps:{zbook:15, macbook:33 },  reasoning:false, hfUrl:"https://huggingface.co/Qwen/Qwen2.5-72B-Instruct",                           note:"72B dense. MMLU-Pro 71.1, IFEval 86.5, HumanEval 86.6. Apache 2.0." },
+  { family:"Google",   model:"Gemma 3 27B IT",        quant:"Q4_K_M (~14GB)",    ctx:128,  score:44.2, params:"27B", arch:"Dense", tps:{zbook:42, macbook:78 },  reasoning:false, hfUrl:"https://huggingface.co/google/gemma-3-27b-it",                                 note:"27B. MMLU-Pro 67.5, GPQA 42.4, Arena 1366. Fast on both machines." },
+  { family:"DeepSeek", model:"DeepSeek R1 Distill 32B",quant:"Q4_K_M (~17GB)",   ctx:128,  score:43.8, params:"32B", arch:"Dense", tps:{zbook:48, macbook:88 },  reasoning:true,  hfUrl:"https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",          note:"32B reasoning distill. GPQA 62.1, HumanEval 85.4, AIME 72.0." },
+  { family:"Cohere",   model:"Command R+ 104B",       quant:"Q4_K_M (~55GB)",    ctx:131,  score:42.8, params:"104B", arch:"Dense", tps:{zbook:null,macbook:null}, reasoning:false, hfUrl:"https://huggingface.co/CohereForAI/c4ai-command-r-plus-08-2024",             note:"104B. 55GB — fits. Arena 1262. Best enterprise RAG model. CC-BY-NC." },
+  { family:"Mistral",  model:"Devstral Small 24B",    quant:"Q4_K_M (~13GB)",    ctx:131,  score:42.4, params:"24B", arch:"Dense", tps:{zbook:55, macbook:95 },  reasoning:false, hfUrl:"https://huggingface.co/mistralai/Devstral-Small-2505",                        note:"24B coding-focused. Strong agentic tool use. Apache 2.0." },
+  // D-tier
+  { family:"Mistral",  model:"Mistral Small 3.1 24B", quant:"Q4_K_M (~14GB)",    ctx:131,  score:40.2, params:"24B", arch:"Dense", tps:{zbook:55, macbook:95 },  reasoning:false, hfUrl:"https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503",       note:"24B. MMLU-Pro 66.8, GPQA 40.7, IFEval 79.8, Arena 1304." },
+  { family:"Microsoft",model:"Phi-4 14B",             quant:"Q4_K_M (~9GB)",     ctx:16,   score:40.3, params:"14B", arch:"Dense", tps:{zbook:68, macbook:140},  reasoning:true,  hfUrl:"https://huggingface.co/microsoft/phi-4",                                       note:"14B. MMLU-Pro 70.4, GPQA 56.1. MIT. Short 16K context — plan workloads accordingly." },
+  { family:"Alibaba",  model:"Qwen3-30B-A3B MoE",    quant:"Q4_K_M (~16GB)",    ctx:131,  score:39.8, params:"30B/3B", arch:"MoE", tps:{zbook:100,macbook:135},  reasoning:true,  hfUrl:"https://huggingface.co/Qwen/Qwen3-30B-A3B",                                   note:"30B MoE / 3B active. MMLU-Pro 68.7, GPQA 60.0, AIME 76.7. Very fast." },
+  { family:"Meta",     model:"Llama 3.1 8B Instruct", quant:"Q4_K_M (~5GB)",     ctx:131,  score:37.8, params:"8B", arch:"Dense", tps:{zbook:168,macbook:262},  reasoning:false, hfUrl:"https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",                     note:"8B. MMLU-Pro 48.3, IFEval 80.4, Arena 1212. Ultra-fast. Great for prototyping." },
+  { family:"Google",   model:"Gemma 3 12B IT",        quant:"Q4_K_M (~8GB)",     ctx:128,  score:37.4, params:"12B", arch:"Dense", tps:{zbook:72, macbook:128},  reasoning:false, hfUrl:"https://huggingface.co/google/gemma-3-12b-it",                                 note:"12B. MMLU-Pro 60.0, GPQA 40.9, HumanEval 85.4, Arena 1342." },
+  { family:"DeepSeek", model:"DeepSeek R1 Distill 14B",quant:"Q4_K_M (~8GB)",    ctx:128,  score:37.0, params:"14B", arch:"Dense", tps:{zbook:96, macbook:168},  reasoning:true,  hfUrl:"https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",          note:"14B reasoning distill. GPQA 59.1, LiveCodeBench 53.1. Mac ~168 t/s." },
+  { family:"DeepSeek", model:"DeepSeek R1 Distill 7B", quant:"Q4_K_M (~4GB)",    ctx:128,  score:35.8, params:"7B", arch:"Dense", tps:{zbook:188,macbook:295},  reasoning:true,  hfUrl:"https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",           note:"7B reasoning distill. GPQA 49.1, MATH-500 92.8. Tiny but strong at math." },
+  { family:"Microsoft",model:"Phi-4 mini 3.8B",       quant:"Q4_K_M (~3GB)",     ctx:131,  score:34.8, params:"3.8B", arch:"Dense", tps:{zbook:195,macbook:310},  reasoning:true,  hfUrl:"https://huggingface.co/microsoft/Phi-4-mini-instruct",                        note:"3.8B. MMLU-Pro 52.8, GPQA 30.4. MIT. Runs on anything with 4GB RAM." },
+  // Additional models to reach 50
+  { family:"Alibaba",  model:"Qwen3-14B",             quant:"Q4_K_M (~8GB)",     ctx:131,  score:41.5, params:"14B", arch:"Dense", tps:{zbook:88, macbook:152},  reasoning:true,  hfUrl:"https://huggingface.co/Qwen/Qwen3-14B",                                       note:"14B. Strong reasoning + coding. Apache 2.0." },
+  { family:"Alibaba",  model:"Qwen3-8B",              quant:"Q4_K_M (~5GB)",     ctx:131,  score:39.5, params:"8B", arch:"Dense", tps:{zbook:142,macbook:225},  reasoning:true,  hfUrl:"https://huggingface.co/Qwen/Qwen3-8B",                                        note:"8B. Solid reasoning for size. Apache 2.0." },
+  { family:"Meta",     model:"Llama 4 Maverick 17B",  quant:"Q4_K_M (~11GB)",    ctx:1000, score:44.5, params:"400B/17B", arch:"MoE", tps:{zbook:88, macbook:118},  reasoning:false, hfUrl:"https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct",      note:"17B active / 400B MoE. Deployable quantised slice. MMLU-Pro 80.5, 1M context." },
+  { family:"Nvidia",   model:"Llama 3.3 Nemotron 70B",quant:"Q4_K_M (~38GB)",    ctx:128,  score:42.8, params:"70B", arch:"Dense", tps:{zbook:14, macbook:31 },  reasoning:true,  hfUrl:"https://huggingface.co/nvidia/Llama-3.3-Nemotron-Super-49B-v1",           note:"70B reasoning. Strong STEM + math. Fits 128GB. Open Weight." },
+  { family:"IBM",      model:"Granite 3.3 8B",        quant:"Q4_K_M (~5GB)",     ctx:128,  score:37.0, params:"8B", arch:"Dense", tps:{zbook:142,macbook:210},  reasoning:true,  hfUrl:"https://huggingface.co/ibm-granite/granite-3.3-8b-instruct",               note:"8B reasoning. Strong for enterprise RAG. Apache 2.0." },
+  { family:"IBM",      model:"Granite 3.3 2B",        quant:"Q4_K_M (~2GB)",     ctx:128,  score:32.5, params:"2B", arch:"Dense", tps:{zbook:285,macbook:430},  reasoning:true,  hfUrl:"https://huggingface.co/ibm-granite/granite-3.3-2b-instruct",               note:"2B. Fastest reasoning model. Edge/mobile deployment. Apache 2.0." },
+  { family:"LiquidAI", model:"LFM2.5 8B-A1B MoE",    quant:"Q4_K_M (~5GB)",     ctx:32,   score:38.0, params:"8B/1B", arch:"MoE", tps:{zbook:177,macbook:230},  reasoning:false, hfUrl:"https://huggingface.co/LiquidAI/LFM2-1.2B",                                   note:"8B MoE / 1B active. Fastest local MoE. Strong for agentic loops. 32K ctx." },
+  { family:"Alibaba",  model:"Qwen2.5-VL 7B",         quant:"Q4_K_M (~5GB)",     ctx:128,  score:36.8, params:"7B", arch:"Dense", tps:{zbook:138,macbook:215},  reasoning:false, hfUrl:"https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct",                       note:"7B multimodal (vision+language). Good local vision model. Apache 2.0." },
+  { family:"Alibaba",  model:"Qwen2.5-VL 32B",        quant:"Q4_K_M (~17GB)",    ctx:128,  score:41.0, params:"32B", arch:"Dense", tps:{zbook:47, macbook:85 },  reasoning:false, hfUrl:"https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct",                      note:"32B multimodal. Best local vision model in 128GB. Apache 2.0." },
+  { family:"Meta",     model:"Llama 3.2 11B Vision",  quant:"Q4_K_M (~7GB)",     ctx:131,  score:35.8, params:"11B", arch:"Dense", tps:{zbook:98, macbook:162},  reasoning:false, hfUrl:"https://huggingface.co/meta-llama/Llama-3.2-11B-Vision-Instruct",          note:"11B multimodal. Good OCR and image understanding locally." },
+  { family:"Mistral",  model:"Codestral 22B",         quant:"Q4_K_M (~13GB)",    ctx:256,  score:37.2, params:"22B", arch:"Dense", tps:{zbook:58, macbook:102},  reasoning:false, hfUrl:"https://huggingface.co/mistralai/Codestral-22B-v0.1",                       note:"22B code-focused. Best-in-class code completion at this size. Codestral license." },
+  { family:"Google",   model:"Gemma 3 27B IT (Q8)",   quant:"Q8_0 (~28GB)",      ctx:128,  score:38.2, params:"27B", arch:"Dense", tps:{zbook:28, macbook:52 },  reasoning:false, hfUrl:"https://huggingface.co/google/gemma-3-27b-it",                               note:"27B at Q8 for higher quality. Noticeably better on nuanced tasks." },
+  { family:"Microsoft",model:"Phi-3.5 MoE 16x3.8B",  quant:"Q4_K_M (~25GB)",    ctx:131,  score:34.2, params:"16x3.8B", arch:"MoE", tps:{zbook:88, macbook:145},  reasoning:false, hfUrl:"https://huggingface.co/microsoft/Phi-3.5-MoE-instruct",                     note:"MoE 16 experts / ~6B active. Fast and efficient. MIT license." },
+  { family:"Alibaba",  model:"Qwen3-32B",             quant:"Q4_K_M (~17GB)",    ctx:131,  score:42.2, params:"32B", arch:"Dense", tps:{zbook:47, macbook:88 },  reasoning:true,  hfUrl:"https://huggingface.co/Qwen/Qwen3-32B",                                       note:"32B dense. Excellent reasoning. Fits 128GB comfortably. Apache 2.0." },
+  { family:"DeepSeek", model:"DeepSeek R1 Distill 32B (Q8)",quant:"Q8_0 (~34GB)",ctx:128, score:44.5, params:"32B", arch:"Dense", tps:{zbook:26, macbook:52 },  reasoning:true,  hfUrl:"https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",          note:"32B R1 distill at Q8. Higher quality reasoning than Q4. Fits 128GB." },
+];
+
+// ── Cloud models ──────────────────────────────────────────────────────────────
+const CLOUD_MODELS = [
+  { family:"Anthropic",  model:"Claude Opus 4.8",          variant:"max",   score:61.4, ctx:1000, params:"~2-3T est.", arch:"Dense", input:5.00,  output:25.00, tps:52,    reasoning:true  },
+  { family:"OpenAI",     model:"GPT-5.5",                  variant:"xhigh", score:60.2, ctx:1000, params:"~9.7T est.", arch:"MoE", input:5.00,  output:30.00, tps:38,    reasoning:true  },
+  { family:"OpenAI",     model:"GPT-5.5",                  variant:"high",  score:59.1, ctx:1000, params:"~9.7T est.", arch:"MoE", input:4.00,  output:20.00, tps:58,    reasoning:true  },
+  { family:"Anthropic",  model:"Claude Opus 4.7",          variant:"max",   score:57.3, ctx:1000, params:"~2-3T est.", arch:"Dense", input:5.00,  output:25.00, tps:55,    reasoning:true  },
+  { family:"Google",     model:"Gemini 3.1 Pro Preview",   variant:"",      score:57.2, ctx:2000, params:"undisclosed", arch:"MoE", input:2.00,  output:12.00, tps:110,   reasoning:false },
+  { family:"OpenAI",     model:"GPT-5.4",                  variant:"xhigh", score:56.8, ctx:1000, params:"undisclosed", arch:"Dense", input:2.50,  output:15.00, tps:62,    reasoning:true  },
+  { family:"Alibaba",    model:"Qwen3.7 Max",              variant:"",      score:56.6, ctx:32, params:"235B/22B", arch:"MoE", input:2.50,  output:7.50,  tps:73,    reasoning:true  },
+  { family:"Google",     model:"Gemini 3.5 Flash",         variant:"",      score:55.3, ctx:1000, params:"undisclosed", arch:"MoE", input:1.50,  output:9.00,  tps:284,   reasoning:false },
+  { family:"Moonshot",   model:"Kimi K2.6",                variant:"",      score:53.9, ctx:262, params:"1T/32B", arch:"MoE", input:0.95,  output:4.00,  tps:89,    reasoning:true  },
+  { family:"Xiaomi",     model:"MiMo-V2.5-Pro",            variant:"",      score:53.8, ctx:32, params:"7B", arch:"Dense", input:0.44,  output:0.87,  tps:142,   reasoning:true  },
+  { family:"xAI",        model:"Grok 4.3",                 variant:"high",  score:52.2, ctx:128, params:"~3.2T est.", arch:"MoE", input:1.25,  output:2.50,  tps:94,    reasoning:true  },
+  { family:"OpenAI",     model:"GPT-5.4",                  variant:"high",  score:52.1, ctx:1000, params:"undisclosed", arch:"Dense", input:2.00,  output:12.00, tps:78,    reasoning:true  },
+  { family:"Meta",       model:"Muse Spark",               variant:"",      score:51.7, ctx:200, params:"~405B est.", arch:"Dense", input:8.00,  output:30.00, tps:null,  reasoning:false, note:"No public API yet" },
+  { family:"Anthropic",  model:"Claude Sonnet 4.6",        variant:"max",   score:51.7, ctx:1000, params:"~500B est.", arch:"Dense", input:3.00,  output:15.00, tps:78,    reasoning:false },
+  { family:"DeepSeek",   model:"DeepSeek V4 Pro",          variant:"Max",   score:51.5, ctx:64, params:"671B/37B", arch:"MoE", input:1.74,  output:3.48,  tps:61,    reasoning:true,  note:"Post-promo" },
+  { family:"Zhipu",      model:"GLM-5.1",                  variant:"",      score:51.4, ctx:128, params:"6B", arch:"Dense", input:1.40,  output:4.40,  tps:88,    reasoning:false },
+  { family:"xAI",        model:"Grok 4.1 Fast",            variant:"",      score:51.0, ctx:128, params:"~314B est.", arch:"MoE", input:1.00,  output:3.00,  tps:134,   reasoning:false },
+  { family:"Alibaba",    model:"Qwen3.5 235B-A22B",        variant:"",      score:50.8, ctx:131, params:"235B/22B", arch:"MoE", input:1.25,  output:3.75,  tps:67,    reasoning:true  },
+  { family:"Google",     model:"Gemini 3 Flash",           variant:"",      score:50.4, ctx:1000, params:"undisclosed", arch:"MoE", input:0.50,  output:3.00,  tps:199,   reasoning:false },
+  { family:"Cohere",     model:"Command A+",               variant:"",      score:49.9, ctx:256, params:"111B", arch:"Dense", input:1.20,  output:4.80,  tps:187,   reasoning:false },
+  { family:"MiniMax",    model:"MiniMax-M2.7",             variant:"",      score:49.6, ctx:1000, params:"456B/46B", arch:"MoE", input:0.30,  output:1.20,  tps:112,   reasoning:false },
+  { family:"OpenAI",     model:"GPT-5.4 mini",             variant:"xhigh", score:48.9, ctx:1000, params:"undisclosed", arch:"Dense", input:0.75,  output:4.50,  tps:143,   reasoning:true  },
+  { family:"Anthropic",  model:"Claude Sonnet 4.5",        variant:"",      score:48.7, ctx:200, params:"~500B est.", arch:"Dense", input:3.00,  output:15.00, tps:85,    reasoning:false },
+  { family:"Google",     model:"Gemini 2.5 Pro",           variant:"",      score:48.5, ctx:1000, params:"undisclosed", arch:"MoE", input:1.25,  output:10.00, tps:148,   reasoning:true  },
+  { family:"Mistral",    model:"Mistral Large 3",          variant:"",      score:48.2, ctx:256, params:"123B", arch:"Dense", input:1.00,  output:3.00,  tps:118,   reasoning:false },
+  { family:"OpenAI",     model:"o3",                       variant:"",      score:48.1, ctx:200, params:"~200B est.", arch:"Dense", input:2.00,  output:8.00,  tps:45,    reasoning:true  },
+  { family:"Alibaba",    model:"Qwen3.5 72B",              variant:"",      score:47.9, ctx:131, params:"72B", arch:"Dense", input:0.60,  output:1.80,  tps:96,    reasoning:true  },
+  { family:"Microsoft",  model:"Phi-5",                    variant:"",      score:47.6, ctx:128, params:"~14B est.", arch:"Dense", input:0.40,  output:1.60,  tps:162,   reasoning:true  },
+  { family:"Baidu",      model:"ERNIE X1 Turbo",           variant:"",      score:47.3, ctx:128, params:"undisclosed", arch:"Dense", input:0.55,  output:2.20,  tps:105,   reasoning:true  },
+  { family:"DeepSeek",   model:"DeepSeek V4 Flash",        variant:"Max",   score:46.5, ctx:64, params:"671B/37B", arch:"MoE", input:0.14,  output:0.28,  tps:229,   reasoning:false },
+  { family:"Alibaba",    model:"Qwen3.5 397B A22B",        variant:"",      score:45.0, ctx:131, params:"397B/22B", arch:"MoE", input:1.25,  output:3.75,  tps:58,    reasoning:true,  note:"Est." },
+  { family:"Google",     model:"Gemini 2.5 Flash",         variant:"",      score:44.9, ctx:1000, params:"undisclosed", arch:"MoE", input:0.30,  output:2.50,  tps:224,   reasoning:true  },
+  { family:"Mistral",    model:"Mistral Medium 3",         variant:"",      score:44.7, ctx:128, params:"22B", arch:"Dense", input:0.40,  output:1.20,  tps:155,   reasoning:false },
+  { family:"Meta",       model:"Llama 4 Maverick",         variant:"",      score:44.5, ctx:1000, params:"400B/17B", arch:"MoE", input:0.27,  output:0.85,  tps:178,   reasoning:false },
+  { family:"OpenAI",     model:"o4-mini",                  variant:"",      score:44.3, ctx:200, params:"~50B est.", arch:"Dense", input:1.10,  output:4.40,  tps:98,    reasoning:true  },
+  { family:"Anthropic",  model:"Claude Haiku 4.5",         variant:"",      score:44.1, ctx:200, params:"~20B est.", arch:"Dense", input:1.00,  output:5.00,  tps:194,   reasoning:false },
+  { family:"DeepSeek",   model:"DeepSeek V3.2",            variant:"",      score:41.7, ctx:128, params:"685B/37B", arch:"MoE", input:0.27,  output:1.10,  tps:176,   reasoning:false },
+  { family:"OpenAI",     model:"GPT-4.1",                  variant:"",      score:41.5, ctx:1000, params:"~1T est.", arch:"Dense", input:2.00,  output:8.00,  tps:88,    reasoning:false },
+  { family:"Alibaba",    model:"Qwen3.5 14B",              variant:"",      score:41.2, ctx:128, params:"14B", arch:"Dense", input:0.14,  output:0.42,  tps:218,   reasoning:true  },
+  { family:"Google",     model:"Gemini 3.1 Flash-Lite",    variant:"",      score:41.0, ctx:1000, params:"undisclosed", arch:"MoE", input:0.25,  output:1.50,  tps:312,   reasoning:false },
+  { family:"Mistral",    model:"Devstral Small",           variant:"",      score:40.8, ctx:131, params:"24B", arch:"Dense", input:0.10,  output:0.30,  tps:203,   reasoning:false },
+  { family:"Meta",       model:"Llama 4 Scout",            variant:"",      score:40.5, ctx:10000, params:"109B/17B", arch:"MoE", input:0.17,  output:0.17,  tps:241,   reasoning:false },
+  { family:"Microsoft",  model:"Phi-4",                    variant:"",      score:40.3, ctx:16, params:"14B", arch:"Dense", input:0.07,  output:0.14,  tps:198,   reasoning:true  },
+  { family:"xAI",        model:"Grok 3 mini",              variant:"",      score:40.1, ctx:131, params:"~27B est.", arch:"Dense", input:0.30,  output:0.50,  tps:172,   reasoning:true  },
+  { family:"Cohere",     model:"Command R+ 08-2024",       variant:"",      score:39.8, ctx:128, params:"104B", arch:"Dense", input:2.50,  output:10.00, tps:98,    reasoning:false },
+  { family:"Amazon",     model:"Nova Pro",                 variant:"",      score:39.5, ctx:300, params:"undisclosed", arch:"Dense", input:0.80,  output:3.20,  tps:143,   reasoning:false },
+  { family:"Alibaba",    model:"Qwen3.5 8B",               variant:"",      score:39.2, ctx:131, params:"8B", arch:"Dense", input:0.06,  output:0.18,  tps:277,   reasoning:true  },
+  { family:"Nvidia",     model:"Llama 3.3 Nemotron Super", variant:"",      score:39.0, ctx:128, params:"49B", arch:"Dense", input:0.40,  output:1.60,  tps:138,   reasoning:true  },
+  { family:"Google",     model:"Gemini 2.5 Flash-Lite",    variant:"",      score:38.7, ctx:1000, params:"undisclosed", arch:"MoE", input:0.10,  output:0.40,  tps:348,   reasoning:false },
+  { family:"DeepSeek",   model:"DeepSeek R1",              variant:"",      score:38.5, ctx:128, params:"671B", arch:"Dense", input:0.55,  output:2.19,  tps:52,    reasoning:true  },
+  { family:"Mistral",    model:"Mistral Small 3.1",        variant:"",      score:38.4, ctx:131, params:"24B", arch:"Dense", input:0.10,  output:0.30,  tps:229,   reasoning:false },
+  { family:"OpenAI",     model:"GPT-4.1 mini",             variant:"",      score:38.2, ctx:1000, params:"~8B est.", arch:"Dense", input:0.40,  output:1.60,  tps:144,   reasoning:false },
+  { family:"IBM",        model:"Granite 4.0 Dense",        variant:"",      score:37.9, ctx:128, params:"3B", arch:"Dense", input:0.12,  output:0.36,  tps:228,   reasoning:false },
+  { family:"Amazon",     model:"Nova Lite",                variant:"",      score:37.6, ctx:300, params:"undisclosed", arch:"Dense", input:0.06,  output:0.24,  tps:218,   reasoning:false },
+  { family:"Mistral",    model:"Mixtral 8x22B",            variant:"",      score:37.4, ctx:65, params:"141B/39B", arch:"MoE", input:0.90,  output:0.90,  tps:108,   reasoning:false },
+  { family:"Google",     model:"Gemma 3 27B IT",           variant:"",      score:37.1, ctx:128, params:"27B", arch:"Dense", input:0.10,  output:0.40,  tps:188,   reasoning:false },
+  { family:"Perplexity", model:"Sonar Pro",                variant:"",      score:37.0, ctx:200, params:"~70B est.", arch:"Dense", input:3.00,  output:15.00, tps:72,    reasoning:false, note:"Incl. web search" },
+  { family:"Writer",     model:"Palmyra X5",               variant:"",      score:36.9, ctx:128, params:"undisclosed", arch:"Dense", input:0.20,  output:0.60,  tps:156,   reasoning:false },
+  { family:"Alibaba",    model:"Qwen3.5 4B",               variant:"",      score:36.7, ctx:262, params:"4B", arch:"Dense", input:0.03,  output:0.10,  tps:347,   reasoning:true  },
+  { family:"Meta",       model:"Llama 3.3 70B Instruct",   variant:"",      score:36.5, ctx:131, params:"70B", arch:"Dense", input:0.23,  output:0.62,  tps:196,   reasoning:false },
+  { family:"OpenAI",     model:"GPT-4.1 nano",             variant:"",      score:36.3, ctx:1000, params:"~2B est.", arch:"Dense", input:0.10,  output:0.40,  tps:192,   reasoning:false },
+  { family:"DeepSeek",   model:"DeepSeek V2.5",            variant:"",      score:36.1, ctx:128, params:"236B/21B", arch:"MoE", input:0.14,  output:0.28,  tps:184,   reasoning:false },
+  { family:"NovitaAI",   model:"Mercury 2",                variant:"",      score:36.0, ctx:32, params:"7B", arch:"Dense (diffusion)", input:0.25,  output:1.00,  tps:869,   reasoning:false, note:"Diffusion LLM — parallel generation" },
+  { family:"IBM",        model:"Granite 4.0 H Small",      variant:"",      score:35.8, ctx:128, params:"1B", arch:"Dense", input:0.05,  output:0.15,  tps:413,   reasoning:false },
+  { family:"Alibaba",    model:"Qwen3.5 2B",               variant:"",      score:35.6, ctx:131, params:"2B", arch:"Dense", input:0.02,  output:0.05,  tps:348,   reasoning:false },
+  { family:"Mistral",    model:"Codestral 2",              variant:"",      score:35.4, ctx:256, params:"22B", arch:"Dense", input:0.30,  output:0.90,  tps:162,   reasoning:false, note:"Code-focused" },
+  { family:"Google",     model:"Gemma 3 12B IT",           variant:"",      score:35.2, ctx:128, params:"12B", arch:"Dense", input:0.06,  output:0.24,  tps:224,   reasoning:false },
+  { family:"Meta",       model:"Llama 3.2 90B Vision",     variant:"",      score:35.0, ctx:131, params:"90B", arch:"Dense", input:0.88,  output:0.88,  tps:71,    reasoning:false },
+  { family:"Groq",       model:"Llama 3.3 70B (Groq)",     variant:"",      score:36.5, ctx:131, params:"70B", arch:"Dense", input:0.59,  output:0.79,  tps:277,   reasoning:false, note:"Groq hardware; very fast" },
+  { family:"Together",   model:"Llama 3.1 405B",           variant:"",      score:34.8, ctx:131, params:"405B", arch:"Dense", input:3.50,  output:3.50,  tps:42,    reasoning:false },
+  { family:"Fireworks",  model:"DeepSeek V3.2 (FW)",       variant:"",      score:41.7, ctx:128, params:"685B/37B", arch:"MoE", input:0.90,  output:2.70,  tps:89,    reasoning:false, note:"Fireworks-hosted" },
+  { family:"Alibaba",    model:"Qwen3.5 0.8B",             variant:"",      score:32.4, ctx:131, params:"0.8B", arch:"Dense", input:0.01,  output:0.01,  tps:347,   reasoning:false },
+  { family:"Google",     model:"Gemma 3n E4B",             variant:"",      score:31.2, ctx:32, params:"4B", arch:"Dense", input:0.02,  output:0.06,  tps:312,   reasoning:false },
+  { family:"Microsoft",  model:"Phi-4 mini",               variant:"",      score:30.8, ctx:131, params:"3.8B", arch:"Dense", input:0.05,  output:0.15,  tps:248,   reasoning:false },
+];
+
+
+// ── Model card URLs ───────────────────────────────────────────────────────────
+// Priority: official model card > HuggingFace card > system card
+// For local models → HuggingFace
+const MODEL_CARD_URL = {
+  // Anthropic — model cards / system cards
+  "Claude Opus 4.8":          "https://www.anthropic.com/claude/opus",
+  "Claude Opus 4.7":          "https://www.anthropic.com/claude/opus",
+  "Claude Sonnet 4.6":        "https://www.anthropic.com/claude/sonnet",
+  "Claude Sonnet 4.5":        "https://www.anthropic.com/claude/sonnet",
+  "Claude Haiku 4.5":         "https://www.anthropic.com/claude/haiku",
+  // OpenAI — system cards & API docs
+  "GPT-5.5":                  "https://openai.com/index/gpt-5/",
+  "GPT-5.4":                  "https://openai.com/index/gpt-5/",
+  "GPT-5.4 mini":             "https://openai.com/index/gpt-5/",
+  "GPT-4.1":                  "https://openai.com/index/gpt-4-1/",
+  "GPT-4.1 mini":             "https://openai.com/index/gpt-4-1/",
+  "GPT-4.1 nano":             "https://openai.com/index/gpt-4-1/",
+  "o3":                       "https://openai.com/index/openai-o3-system-card/",
+  "o4-mini":                  "https://openai.com/index/openai-o3-o4-mini-system-card/",
+  "Muse Spark":               "https://huggingface.co/meta-ai",
+  // Google — model cards / technical reports
+  "Gemini 3.1 Pro Preview":   "https://deepmind.google/technologies/gemini/",
+  "Gemini 3.5 Flash":         "https://deepmind.google/technologies/gemini/flash/",
+  "Gemini 3 Flash":           "https://deepmind.google/technologies/gemini/flash/",
+  "Gemini 2.5 Pro":           "https://deepmind.google/technologies/gemini/pro/",
+  "Gemini 2.5 Flash":         "https://deepmind.google/technologies/gemini/flash/",
+  "Gemini 2.5 Flash-Lite":    "https://deepmind.google/technologies/gemini/flash/",
+  "Gemini 3.1 Flash-Lite":    "https://deepmind.google/technologies/gemini/flash/",
+  "Gemma 3 27B IT":           "https://huggingface.co/google/gemma-3-27b-it",
+  "Gemma 3 12B IT":           "https://huggingface.co/google/gemma-3-12b-it",
+  "Gemma 3n E4B":             "https://huggingface.co/google/gemma-3n-E4B-it",
+  // Meta — model cards on HuggingFace
+  "Llama 4 Maverick":         "https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+  "Llama 4 Scout":            "https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+  "Llama 3.3 70B Instruct":   "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+  "Llama 3.2 90B Vision":     "https://huggingface.co/meta-llama/Llama-3.2-90B-Vision-Instruct",
+  "Llama 3.1 405B":           "https://huggingface.co/meta-llama/Meta-Llama-3.1-405B-Instruct",
+  // Alibaba / Qwen
+  "Qwen3.7 Max":              "https://huggingface.co/Qwen/Qwen3-235B-A22B",
+  "Qwen3.5 235B-A22B":        "https://huggingface.co/Qwen/Qwen3-235B-A22B",
+  "Qwen3.5 397B A22B":        "https://huggingface.co/Qwen",
+  "Qwen3.5 72B":              "https://huggingface.co/Qwen/Qwen2.5-72B-Instruct",
+  "Qwen3.5 14B":              "https://huggingface.co/Qwen/Qwen2.5-14B-Instruct",
+  "Qwen3.5 8B":               "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+  "Qwen3.5 4B":               "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct",
+  "Qwen3.5 2B":               "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct",
+  "Qwen3.5 0.8B":             "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct",
+  // Mistral
+  "Mistral Large 3":          "https://huggingface.co/mistralai/Mistral-Large-Instruct-2411",
+  "Mistral Medium 3":         "https://huggingface.co/mistralai/Mistral-Medium-3",
+  "Mistral Small 3.1":        "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+  "Devstral Small":           "https://huggingface.co/mistralai/Devstral-Small-2505",
+  "Mixtral 8x22B":            "https://huggingface.co/mistralai/Mixtral-8x22B-Instruct-v0.1",
+  "Codestral 2":              "https://huggingface.co/mistralai/Codestral-22B-v0.1",
+  // DeepSeek
+  "DeepSeek V4 Pro":          "https://huggingface.co/deepseek-ai/DeepSeek-V3",
+  "DeepSeek V4 Flash":        "https://huggingface.co/deepseek-ai/DeepSeek-V3",
+  "DeepSeek V3.2":            "https://huggingface.co/deepseek-ai/DeepSeek-V3",
+  "DeepSeek V2.5":            "https://huggingface.co/deepseek-ai/DeepSeek-V2.5",
+  "DeepSeek R1":              "https://huggingface.co/deepseek-ai/DeepSeek-R1",
+  "DeepSeek V3.2 (FW)":       "https://huggingface.co/deepseek-ai/DeepSeek-V3",
+  // xAI Grok
+  "Grok 4.3":                 "https://x.ai/blog/grok-4",
+  "Grok 4.1 Fast":            "https://x.ai/blog/grok-4",
+  "Grok 3 mini":              "https://x.ai/blog/grok-3",
+  // Microsoft
+  "Phi-5":                    "https://huggingface.co/microsoft/phi-4",
+  "Phi-4":                    "https://huggingface.co/microsoft/phi-4",
+  "Phi-4 mini":               "https://huggingface.co/microsoft/Phi-4-mini-instruct",
+  // Cohere
+  "Command A+":               "https://huggingface.co/CohereForAI/c4ai-command-a-03-2025",
+  "Command R+ 08-2024":       "https://huggingface.co/CohereForAI/c4ai-command-r-plus-08-2024",
+  // Amazon
+  "Nova Pro":                 "https://aws.amazon.com/ai/generative-ai/nova/",
+  "Nova Lite":                "https://aws.amazon.com/ai/generative-ai/nova/",
+  // Others
+  "Kimi K2.6":                "https://huggingface.co/moonshotai/Kimi-K2-Instruct",
+  "MiMo-V2.5-Pro":            "https://huggingface.co/XiaomiMiMo/MiMo-VL-7B-RL",
+  "GLM-5.1":                  "https://huggingface.co/THUDM/glm-4-9b-chat",
+  "MiniMax-M2.7":             "https://huggingface.co/MiniMaxAI/MiniMax-Text-01",
+  "ERNIE X1 Turbo":           "https://ernie.baidu.com/",
+  "Sonar Pro":                "https://docs.perplexity.ai/models/sonar-pro",
+  "Palmyra X5":               "https://huggingface.co/Writer/palmyra-x-004",
+  "Mercury 2":                "https://huggingface.co/inception-mbzuai/mercury-2-diffusion",
+  "Granite 4.0 Dense":        "https://huggingface.co/ibm-granite/granite-3.3-8b-instruct",
+  "Granite 4.0 H Small":      "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct",
+  "Llama 3.3 Nemotron Super": "https://huggingface.co/nvidia/Llama-3.3-Nemotron-Super-49B-v1",
+  "Llama 3.3 70B (Groq)":     "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+  "DeepSeek R1 Distill 70B":  "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+  "DeepSeek R1 Distill 14B":  "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+  "GPT-OSS 120B":             "https://huggingface.co/models?search=gpt-oss",
+  "Qwen3.5 30B-A3B MoE":      "https://huggingface.co/Qwen/Qwen3-30B-A3B",
+  "Qwen3-Coder-Next 80B-A3B": "https://huggingface.co/Qwen/Qwen3-Coder",
+  "Nemotron 3 Super 120B":    "https://huggingface.co/nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
+  "Llama 4 Maverick 17B-A5B": "https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+  "Mistral Small 3.1 22B":    "https://huggingface.co/mistralai/Mistral-Small-3.1-24B-Instruct-2503",
+  "Phi-4 14B":                "https://huggingface.co/microsoft/phi-4",
+  "LFM2.5 8B-A1B MoE":        "https://huggingface.co/LiquidAI/LFM2-1.2B",
+  // Additional local model cards
+  "Kimi K2.5":                "https://huggingface.co/moonshotai/Kimi-K2.5",
+  "GLM-5":                    "https://huggingface.co/THUDM/GLM-4",
+  "GLM-4.7":                  "https://huggingface.co/THUDM/GLM-4",
+  "MiniMax M2.5":             "https://huggingface.co/MiniMaxAI/MiniMax-Text-01",
+  "Qwen3.5 397B-A17B":        "https://huggingface.co/Qwen/Qwen3-235B-A22B",
+  "DeepSeek R1 671B":         "https://huggingface.co/deepseek-ai/DeepSeek-R1",
+  "Mistral Large 3 675B":     "https://huggingface.co/mistralai/Mistral-Large-Instruct-2411",
+  "GPT-oss 120B":             "https://huggingface.co/openai/gpt-oss-120b",
+  "DeepSeek V3.2 685B":       "https://huggingface.co/deepseek-ai/DeepSeek-V3",
+  "Step-3.5-Flash 196B":      "https://huggingface.co/stepfun-ai/Step-3.5-Flash",
+  "MiMo-V2-Flash 309B":       "https://huggingface.co/XiaomiMiMo/MiMo-VL-7B-RL",
+  "Qwen3-Coder-Next 80B":     "https://huggingface.co/Qwen/Qwen3-Coder",
+  "Qwen3.5-9B":               "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+  "Qwen3.5-4B":               "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct",
+  "Llama 4 Maverick 400B":    "https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+  "Nemotron Ultra 253B":      "https://huggingface.co/nvidia/Llama-3_1-Nemotron-Ultra-253B-v1",
+  "Qwen3-235B-A22B":          "https://huggingface.co/Qwen/Qwen3-235B-A22B",
+  "Hunyuan 2.0 406B":         "https://huggingface.co/tencent/Hunyuan-Large",
+  "GPT-oss 20B":              "https://huggingface.co/openai/gpt-oss-20b",
+  "Llama 4 Scout 109B":       "https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct",
+  "Devstral-2-123B":          "https://huggingface.co/mistralai/Devstral-Small-2505",
+  "Llama 3.3 70B Instruct":   "https://huggingface.co/meta-llama/Llama-3.3-70B-Instruct",
+  "DeepSeek R1 Distill 70B":  "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+  "Qwen 2.5-72B":             "https://huggingface.co/Qwen/Qwen2.5-72B-Instruct",
+  "DeepSeek R1 Distill 32B":  "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+  "Command R+ 104B":          "https://huggingface.co/CohereForAI/c4ai-command-r-plus-08-2024",
+  "Devstral Small 24B":       "https://huggingface.co/mistralai/Devstral-Small-2505",
+  "Qwen3-30B-A3B MoE":        "https://huggingface.co/Qwen/Qwen3-30B-A3B",
+  "Llama 3.1 8B Instruct":    "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct",
+  "DeepSeek R1 Distill 14B":  "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+  "DeepSeek R1 Distill 7B":   "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+  "Phi-4 mini 3.8B":          "https://huggingface.co/microsoft/Phi-4-mini-instruct",
+  "Qwen3-14B":                "https://huggingface.co/Qwen/Qwen3-14B",
+  "Qwen3-8B":                 "https://huggingface.co/Qwen/Qwen3-8B",
+  "Llama 4 Maverick 17B":     "https://huggingface.co/meta-llama/Llama-4-Maverick-17B-128E-Instruct",
+  "Llama 3.3 Nemotron 70B":   "https://huggingface.co/nvidia/Llama-3.3-Nemotron-Super-49B-v1",
+  "Granite 3.3 8B":           "https://huggingface.co/ibm-granite/granite-3.3-8b-instruct",
+  "Granite 3.3 2B":           "https://huggingface.co/ibm-granite/granite-3.3-2b-instruct",
+  "Qwen2.5-VL 7B":            "https://huggingface.co/Qwen/Qwen2.5-VL-7B-Instruct",
+  "Qwen2.5-VL 32B":           "https://huggingface.co/Qwen/Qwen2.5-VL-32B-Instruct",
+  "Codestral 22B":            "https://huggingface.co/mistralai/Codestral-22B-v0.1",
+  "Gemma 3 27B IT (Q8)":      "https://huggingface.co/google/gemma-3-27b-it",
+  "Qwen3-32B":                "https://huggingface.co/Qwen/Qwen3-32B",
+  "DeepSeek R1 Distill 32B (Q8)": "https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-32B",
+};
+
+
+// ── Pricing page URLs per vendor ──────────────────────────────────────────────
+const PRICING_URL = {
+  "Anthropic":  "https://www.anthropic.com/pricing",
+  "OpenAI":     "https://openai.com/api/pricing",
+  "Google":     "https://ai.google.dev/pricing",
+  "Meta":       "https://ai.meta.com/blog/llama-api/",
+  "Mistral":    "https://mistral.ai/technology/#pricing",
+  "Alibaba":    "https://www.alibabacloud.com/help/en/model-studio/getting-started/models",
+  "DeepSeek":   "https://api-docs.deepseek.com/quick_start/pricing",
+  "xAI":        "https://x.ai/api#pricing",
+  "Cohere":     "https://cohere.com/pricing",
+  "MiniMax":    "https://intl.minimaxi.com/price",
+  "Zhipu":      "https://open.bigmodel.cn/pricing",
+  "Moonshot":   "https://platform.moonshot.cn/docs/pricing/language-model",
+  "Xiaomi":     "https://huggingface.co/XiaomiMiMo",
+  "Baidu":      "https://cloud.baidu.com/doc/WENXINWORKSHOP/s/hlrk4akp7",
+  "Amazon":     "https://aws.amazon.com/bedrock/pricing/",
+  "Microsoft":  "https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/",
+  "IBM":        "https://www.ibm.com/products/watsonx-ai/pricing",
+  "Nvidia":     "https://build.nvidia.com/",
+  "Writer":     "https://writer.com/pricing/",
+  "Perplexity": "https://docs.perplexity.ai/docs/pricing",
+  "NovitaAI":   "https://novita.ai/model-api/product/llm-api#pricing",
+  "Together":   "https://www.together.ai/pricing",
+  "Fireworks":  "https://fireworks.ai/pricing",
+  "Groq":       "https://groq.com/pricing/",
+  "AI21":       "https://www.ai21.com/pricing",
+  "Local":      "https://artificialanalysis.ai/",
+};
+
+// ── Tiers ─────────────────────────────────────────────────────────────────────
+// Local models sort into their score-based tier alongside cloud models.
+// Boundaries: Elite ≥58 | High 52-57 | Mid 46-51 | Efficient 36-45 | Compact <36
+const TIERS = [
+  { label:"Elite",     min:58, desc:"Frontier — best available" },
+  { label:"High",      min:52, desc:"Production-grade" },
+  { label:"Mid",       min:46, desc:"Cost-optimized" },
+  { label:"Efficient", min:36, desc:"Budget / smaller models" },
+  { label:"Compact",   min:0,  desc:"Nano / edge / embedded" },
+];
+function getTier(m) {
+  if (m.score >= 58) return TIERS[0];
+  if (m.score >= 52) return TIERS[1];
+  if (m.score >= 46) return TIERS[2];
+  if (m.score >= 36) return TIERS[3];
+  return TIERS[4];
+}
+function tierColor(label, t) {
+  return {
+    Elite:t.elite, High:t.high, Mid:t.mid, Efficient:t.efficient, Compact:"#6b7280"
+  }[label] || t.textMuted;
+}
+
+// ── Amortization formula ──────────────────────────────────────────────────────
+// perHr(hw, hrsPerDay) = hw.price / (hw.years * 365 * hrsPerDay)
+// localCostPerMTok(hw, tps, hrsPerDay) = perHr / (tps * 3600) * 1_000_000
+function perHr(hw, hrsPerDay) {
+  return hw.price / (hw.years * 365 * hrsPerDay);
+}
+function localCostPerMTok(hw, tps, hrsPerDay) {
+  if (!tps || tps <= 0) return null;
+  return (perHr(hw, hrsPerDay) / (tps * 3600)) * 1_000_000;
+}
+
+// ── Refresh via Anthropic API ─────────────────────────────────────────────────
+function getStoredApiKey() {
+  try { return localStorage.getItem("anthropic_api_key") || ""; } catch { return ""; }
+}
+function setStoredApiKey(key) {
+  try { localStorage.setItem("anthropic_api_key", key); } catch {}
+}
+
+async function fetchLatestModels(cloudModels) {
+  const apiKey = getStoredApiKey();
+  if (!apiKey) throw new Error("No API key configured. Click the gear icon to set your Anthropic API key.");
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{
+      "Content-Type":"application/json",
+      "Authorization":`Bearer ${apiKey}`,
+      "anthropic-version":"2023-06-01"
+    },
+    body: JSON.stringify({
+      model:"claude-sonnet-4-20250514", max_tokens:5000,
+      tools:[{type:"web_search_20250305",name:"web_search"}],
+      system:"You are a precise AI pricing data assistant. Return ONLY a valid JSON array, no markdown, no prose.",
+      messages:[{role:"user",content:`Today is ${new Date().toISOString().slice(0,10)}.
+Update pricing and benchmark scores for these cloud AI models from official sources.
+Models: ${cloudModels.map(m=>m.model+(m.variant?` (${m.variant})`:"")+` [${m.family}]`).join(", ")}
+Return JSON array. Each element: { family, model, variant, score (Artificial Analysis Intelligence Index 0-100), input ($/1M tokens), output ($/1M tokens), tps (tokens/sec at API, number or null), reasoning (bool), note ("" if none) }
+Keep ALL models. Add newer versions as extra entries. Keep existing value if uncertain. ONLY the JSON array.`}],
+    }),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}: ${res.statusText}`);
+  const data = await res.json();
+  const text = data.content.map(b=>b.type==="text"?b.text:"").filter(Boolean).join("\n");
+  const clean = text.replace(/```json|```/g,"").trim();
+  const s=clean.indexOf("["), e=clean.lastIndexOf("]");
+  if(s<0||e<0) throw new Error("No JSON array found");
+  return JSON.parse(clean.slice(s,e+1))
+    .filter(m=>typeof m.model==="string"&&typeof m.input==="number"&&typeof m.output==="number")
+    .map(m=>({...m,note:m.note||"",variant:m.variant||"",isLocal:false}));
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+function ThemeToggle() {
+  const {t,toggle} = useTheme();
+  return (
+    <button onClick={toggle} style={{display:"flex",alignItems:"center",gap:6,padding:"5px 13px",borderRadius:6,border:`1px solid ${t.borderMd}`,background:t.surfaceBg,color:t.text,cursor:"pointer",fontSize:15,fontWeight:600,fontFamily:"inherit",whiteSpace:"nowrap"}}>
+      {t.dark?"☀ Light":"☾ Dark"}
+    </button>
+  );
+}
+
+function ApiKeySettings() {
+  const {t} = useTheme();
+  const [open, setOpen] = useState(false);
+  const [key, setKey] = useState(getStoredApiKey());
+  const [tempKey, setTempKey] = useState(key);
+
+  const handleSave = () => {
+    setStoredApiKey(tempKey);
+    setKey(tempKey);
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <button onClick={() => { setTempKey(key); setOpen(true); }} style={{display:"flex",alignItems:"center",justifyContent:"center",width:36,height:36,borderRadius:6,border:`1px solid ${t.borderMd}`,background:t.surfaceBg,color:t.text,cursor:"pointer",fontFamily:"inherit",fontSize:16}}>
+        ⚙
+      </button>
+      {open && (
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}}>
+          <div style={{background:t.surfaceBg,borderRadius:8,padding:24,maxWidth:400,width:"90%",boxShadow:"0 4px 12px rgba(0,0,0,0.15)"}}>
+            <h2 style={{color:t.text,fontSize:18,fontWeight:700,marginBottom:12}}>API Key Settings</h2>
+            <p style={{color:t.textSub,fontSize:14,marginBottom:12}}>Enter your Anthropic API key to enable cloud data refresh.</p>
+            <input
+              type="password"
+              value={tempKey}
+              onChange={(e) => setTempKey(e.target.value)}
+              placeholder="sk-ant-..."
+              style={{width:"100%",padding:"10px 12px",borderRadius:6,border:`1px solid ${t.border}`,background:t.raisedBg,color:t.text,fontFamily:"monospace",fontSize:13,marginBottom:16,boxSizing:"border-box"}}
+            />
+            <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+              <button onClick={() => setOpen(false)} style={{padding:"8px 16px",borderRadius:6,border:`1px solid ${t.borderMd}`,background:t.raisedBg,color:t.text,cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"inherit"}}>
+                Cancel
+              </button>
+              <button onClick={handleSave} style={{padding:"8px 16px",borderRadius:6,border:"1px solid #4ade80",background:"#f0fdf4",color:"#14532d",cursor:"pointer",fontSize:14,fontWeight:600,fontFamily:"inherit"}}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ScoreBar({score, color}) {
+  const {t} = useTheme();
+  const pct = Math.max(0, Math.min(100, ((score-25)/40)*100));
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <div style={{flex:1,height:5,background:t.barTrack,borderRadius:3,overflow:"hidden",minWidth:50}}>
+        <div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:3}}/>
+      </div>
+      <span style={{fontVariantNumeric:"tabular-nums",fontSize:16,fontWeight:800,color,minWidth:32,textAlign:"right"}}>{score}</span>
+    </div>
+  );
+}
+
+function TpsBar({tps, maxTps, isLocal, hwColor, tierCol}) {
+  const {t} = useTheme();
+  if (!tps) return <span style={{color:t.textFaint,fontSize:16}}>—</span>;
+  const pct = Math.max(2, Math.min(100, (tps/maxTps)*100));
+  const barColor = isLocal ? hwColor : tierCol;
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:6}}>
+      <div style={{flex:1,height:4,background:t.barTrack,borderRadius:2,overflow:"hidden",minWidth:36}}>
+        <div style={{height:"100%",width:`${pct}%`,background:barColor,borderRadius:2,opacity:0.8}}/>
+      </div>
+      <span style={{fontVariantNumeric:"tabular-nums",fontSize:14,fontWeight:600,color:isLocal?hwColor:t.textSub,minWidth:42,textAlign:"right",whiteSpace:"nowrap"}}>
+        {tps>=1000?`${(tps/1000).toFixed(1)}k`:tps}<span style={{fontSize:11,opacity:0.65}}> t/s</span>
+      </span>
+    </div>
+  );
+}
+
+function FamilyChip({family, isLocal, hwColor}) {
+  const {t} = useTheme();
+  // For local models: use vendor color but keep LOCAL as a secondary badge
+  const color = (t.dark?FC_D:FC_L)[family] || (isLocal ? hwColor : t.textMuted);
+  return (
+    <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 7px",borderRadius:4,border:`1px solid ${color}55`,color,fontSize:13,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",background:t.dark?`${color}18`:`${color}10`,whiteSpace:"nowrap"}}>
+      {family}
+      {isLocal && <span style={{fontSize:10,padding:"0 4px",borderRadius:3,background:hwColor+"25",color:hwColor,fontWeight:800,letterSpacing:"0.04em",marginLeft:1}}>LOCAL</span>}
+    </span>
+  );
+}
+
+function valColor(v, t) {
+  if (t.dark){if(v>50)return"#4ade80";if(v>20)return"#fbbf24";if(v>8)return"#60a5fa";return"#a78bfa";}
+  else       {if(v>50)return"#14532d";if(v>20)return"#78350f";if(v>8)return"#1e3a8a";return"#4c1d95";}
+}
+
+
+// ── TPS measurement prompts ──────────────────────────────────────────────────
+// Three prompt lengths designed to stress-test different phases of inference:
+//   Short  — first-token latency + short decode run (~50 output tokens)
+//   Medium — typical agent task (~300 output tokens)
+//   Long   — sustained throughput measurement (~800 output tokens)
+// The timed prompt instructions tell the user exactly what to measure.
+const TPS_PROMPTS = [
+  {
+    id: "short",
+    label: "Short burst",
+    targetTokens: 50,
+    description: "~50 output tokens — tests prefill speed and first-token latency",
+    prompt: `List exactly 10 countries in Europe, one per line. Format:
+1. [country]
+2. [country]
+...
+Output the list immediately with no preamble, no explanation, no extra text.`,
+    instruction: "Start your stopwatch when you submit this prompt. Stop it when the model finishes the last word. Count the output tokens (most UIs show this). Divide: tokens ÷ seconds = your TPS.",
+  },
+  {
+    id: "medium",
+    label: "Medium task",
+    targetTokens: 300,
+    description: "~300 output tokens — typical agentic reasoning response",
+    prompt: `Explain how a transformer neural network works. Cover:
+1. The self-attention mechanism and why it replaced RNNs
+2. What "tokens" are and how they differ from words
+3. Why scaling laws matter for model capability
+4. The key difference between encoder-only, decoder-only, and encoder-decoder models
+
+Be concise but complete. Write approximately 250-300 words total.`,
+    instruction: "Start your stopwatch when you submit. Stop when the last word appears. Count output tokens from your UI. TPS = tokens ÷ seconds.",
+  },
+  {
+    id: "long",
+    label: "Sustained throughput",
+    targetTokens: 800,
+    description: "~800 output tokens — measures sustained decode throughput",
+    prompt: `Write a detailed technical comparison of three sorting algorithms: QuickSort, MergeSort, and HeapSort.
+
+For each algorithm cover:
+- How it works (step by step)
+- Time complexity (best, average, worst case)
+- Space complexity
+- When to use it vs the others
+- A simple Python implementation (around 15 lines each)
+
+Then write a summary table comparing all three across: time complexity, space complexity, stability, in-place, best use case.
+
+Be thorough. Target approximately 700-800 words of output.`,
+    instruction: "This longer prompt gives the most accurate sustained TPS reading. Run it 2-3 times and average the results for best accuracy.",
+  },
+];
+
+// ── Modal overlay ────────────────────────────────────────────────────────────
+// No portal needed — rendered at App root level where position:fixed is not clipped.
+// Escape key + body scroll lock handled here.
+function ModalOverlay({ onClose, children }) {
+  const { t } = useTheme();
+  useEffect(() => {
+    function onKey(e) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      style={{
+        position:"fixed", top:0, left:0, right:0, bottom:0, zIndex:99999,
+        background:"rgba(0,0,0,0.6)",
+        display:"flex", alignItems:"flex-start", justifyContent:"center",
+        overflowY:"auto", padding:"32px 16px",
+      }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+
+      <div
+        onMouseDown={e => e.stopPropagation()}
+        style={{width:"100%", maxWidth:800, marginBottom:32}}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── TpsPanel — measure and save tokens/second for a local model ─────────────
+function TpsPanel({ targetModel, userTps, onTpsChange, onClose }) {
+  const { t } = useTheme();
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [copied, setCopied] = useState(null);
+  const [inputVal, setInputVal] = useState(userTps !== null ? String(userTps) : "");
+  const [running, setRunning] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [startTime, setStartTime] = useState(null);
+  const timerRef = useRef(null);
+
+  const p = TPS_PROMPTS[activeIdx];
+  const parsedTps = parseFloat(inputVal);
+  const tpsValid  = inputVal !== "" && !isNaN(parsedTps) && parsedTps > 0;
+
+  // Colour coding for TPS ranges
+  function tpsColor(v) {
+    if (!v || isNaN(v)) return t.textFaint;
+    if (v >= 100) return t.elite;
+    if (v >= 40)  return t.high;
+    if (v >= 15)  return t.mid;
+    return t.efficient;
+  }
+  function tpsLabel(v) {
+    if (!v || isNaN(v)) return "";
+    if (v >= 100) return "Fast — real-time feel";
+    if (v >= 40)  return "Good — comfortable chat speed";
+    if (v >= 15)  return "Usable — slight lag on long responses";
+    return "Slow — may feel sluggish";
+  }
+
+  // Stopwatch
+  function startTimer() {
+    const t0 = Date.now();
+    setStartTime(t0);
+    setElapsed(0);
+    setRunning(true);
+    timerRef.current = setInterval(() => {
+      setElapsed(Math.round((Date.now() - t0) / 100) / 10);
+    }, 100);
+  }
+  function stopTimer() {
+    clearInterval(timerRef.current);
+    setRunning(false);
+  }
+  function resetTimer() {
+    clearInterval(timerRef.current);
+    setRunning(false);
+    setElapsed(0);
+    setStartTime(null);
+  }
+  useEffect(() => () => clearInterval(timerRef.current), []);
+
+  // Auto-calculate TPS when user enters token count
+  const [tokenCount, setTokenCount] = useState("");
+  const calculatedTps = useMemo(() => {
+    const toks = parseFloat(tokenCount);
+    if (elapsed > 0 && toks > 0) return Math.round(toks / elapsed * 10) / 10;
+    return null;
+  }, [tokenCount, elapsed]);
+
+  function useCalculated() {
+    if (calculatedTps) {
+      setInputVal(String(calculatedTps));
+      onTpsChange(calculatedTps);
+    }
+  }
+
+  function copyPrompt(text, id) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(id); setTimeout(() => setCopied(null), 2000);
+    }).catch(() => {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.cssText = "position:fixed;top:-9999px;left:-9999px;";
+      document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); document.body.removeChild(ta);
+      setCopied(id); setTimeout(() => setCopied(null), 2000);
+    });
+  }
+
+  function commitTps() {
+    if (tpsValid) onTpsChange(parsedTps);
+  }
+
+  const hwColor = t.mid; // neutral — no hardware context here, just measuring
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{
+        background:t.pageBg, border:`2px solid ${t.borderMd}`, borderRadius:14,
+        fontFamily:"'IBM Plex Mono','Courier New',monospace",
+        boxShadow:"0 32px 64px rgba(0,0,0,0.4)", color:t.text,
+      }}>
+        {/* Header */}
+        <div style={{padding:"20px 24px 16px",borderBottom:`1px solid ${t.border}`,display:"flex",alignItems:"flex-start",gap:12,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,color:t.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:5}}>
+              Local TPS Measurement
+            </div>
+            <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:t.text,letterSpacing:"-0.02em",marginBottom:4,lineHeight:1.2}}>
+              {targetModel}
+            </h2>
+            <p style={{fontSize:13,color:t.textMuted,lineHeight:1.6,margin:0}}>
+              Paste a prompt into your local model, time the response, enter your TPS. Costs and value scores update instantly.
+            </p>
+          </div>
+          <button onClick={onClose} style={{padding:"7px 14px",borderRadius:6,border:`1px solid ${t.border}`,background:t.raisedBg,color:t.textMuted,cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:700,flexShrink:0}}>
+            ✕ Close
+          </button>
+        </div>
+
+        {/* Current saved TPS */}
+        {userTps !== null && (
+          <div style={{padding:"10px 24px",borderBottom:`1px solid ${t.border}`,display:"flex",alignItems:"center",gap:12,background:t.dark?`${t.elite}08`:"#f0fdf4"}}>
+            <span style={{fontSize:13,color:t.textMuted}}>Saved TPS for this model:</span>
+            <span style={{fontSize:22,fontWeight:800,color:tpsColor(userTps),fontVariantNumeric:"tabular-nums"}}>{userTps}</span>
+            <span style={{fontSize:13,color:tpsColor(userTps)}}>{tpsLabel(userTps)}</span>
+          </div>
+        )}
+
+        {/* Prompt selector tabs */}
+        <div style={{padding:"12px 24px",borderBottom:`1px solid ${t.border}`,display:"flex",gap:8,flexWrap:"wrap"}}>
+          {TPS_PROMPTS.map((pr,i) => (
+            <button key={pr.id} onClick={()=>{setActiveIdx(i);resetTimer();setTokenCount("");}}
+              style={{padding:"6px 14px",borderRadius:6,fontSize:13,fontWeight:700,fontFamily:"inherit",cursor:"pointer",
+                border:`1.5px solid ${i===activeIdx?t.mid:t.border}`,
+                background:i===activeIdx?`${t.mid}20`:t.surfaceBg,
+                color:i===activeIdx?t.mid:t.textMuted}}>
+              {pr.label}
+              <span style={{fontSize:11,marginLeft:5,opacity:0.7}}>~{pr.targetTokens} tok</span>
+            </button>
+          ))}
+          <span style={{fontSize:12,color:t.textFaint,alignSelf:"center",marginLeft:"auto"}}>{p.description}</span>
+        </div>
+
+        <div style={{padding:"20px 24px"}}>
+          {/* Prompt box */}
+          <div style={{fontSize:13,fontWeight:600,color:t.text,marginBottom:8}}>Step 1 — Copy this prompt and run it in your local model</div>
+          <div style={{position:"relative",marginBottom:18}}>
+            <div style={{background:t.dark?"#080d18":t.raisedBg,border:`1px solid ${t.border}`,borderRadius:8,
+              padding:"14px 16px",paddingRight:110,fontSize:13,color:t.textSub,lineHeight:1.65,
+              whiteSpace:"pre-wrap",fontFamily:"'IBM Plex Mono','Courier New',monospace",wordBreak:"break-word"}}>
+              {p.prompt}
+            </div>
+            <button onClick={()=>copyPrompt(p.prompt, p.id)}
+              style={{position:"absolute",top:10,right:10,padding:"7px 13px",borderRadius:6,
+                border:`1px solid ${copied===p.id?t.elite:t.border}`,
+                background:copied===p.id?(t.dark?"#052e16":"#f0fdf4"):t.surfaceBg,
+                color:copied===p.id?t.elite:t.textMuted,cursor:"pointer",fontSize:12,fontWeight:700,
+                fontFamily:"inherit",whiteSpace:"nowrap",zIndex:2}}>
+              {copied===p.id?"✓ Copied!":"⧉ Copy prompt"}
+            </button>
+          </div>
+
+          {/* Instruction */}
+          <div style={{background:t.dark?"rgba(96,165,250,0.07)":"#eff6ff",border:`1px solid ${t.dark?"rgba(96,165,250,0.22)":"#bfdbfe"}`,borderRadius:7,padding:"10px 14px",marginBottom:18,fontSize:13,color:t.textSub,lineHeight:1.6}}>
+            <strong style={{color:t.mid}}>How to measure: </strong>{p.instruction}
+          </div>
+
+          {/* Built-in stopwatch */}
+          <div style={{fontSize:13,fontWeight:600,color:t.text,marginBottom:10}}>Step 2 — Optional: use the stopwatch below</div>
+          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap",
+            background:t.raisedBg,borderRadius:8,padding:"14px 16px",border:`1px solid ${t.border}`}}>
+            <div style={{fontVariantNumeric:"tabular-nums",fontSize:32,fontWeight:800,color:running?t.high:t.text,minWidth:90,letterSpacing:"-0.02em"}}>
+              {elapsed.toFixed(1)}<span style={{fontSize:16,fontWeight:500,color:t.textMuted}}> s</span>
+            </div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {!running
+                ? <button onClick={startTimer} style={{padding:"8px 18px",borderRadius:6,border:`1px solid ${t.elite}`,background:`${t.elite}18`,color:t.elite,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>▶ Start</button>
+                : <button onClick={stopTimer}  style={{padding:"8px 18px",borderRadius:6,border:`1px solid ${t.high}`,background:`${t.high}18`,color:t.high,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:700}}>■ Stop</button>
+              }
+              <button onClick={resetTimer} style={{padding:"8px 14px",borderRadius:6,border:`1px solid ${t.border}`,background:t.surfaceBg,color:t.textMuted,cursor:"pointer",fontFamily:"inherit",fontSize:13,fontWeight:600}}>↺ Reset</button>
+            </div>
+            {elapsed > 0 && !running && (
+              <div style={{display:"flex",alignItems:"center",gap:8,flex:1,flexWrap:"wrap"}}>
+                <span style={{fontSize:13,color:t.textMuted}}>Output tokens:</span>
+                <input type="number" min="1" placeholder="e.g. 284"
+                  value={tokenCount} onChange={e=>setTokenCount(e.target.value)}
+                  style={{width:90,padding:"6px 10px",borderRadius:5,border:`1px solid ${t.border}`,
+                    background:t.surfaceBg,color:t.text,fontSize:13,fontFamily:"inherit",outline:"none"}}
+                />
+                {calculatedTps && (
+                  <React.Fragment>
+                    <span style={{fontSize:16,fontWeight:800,color:tpsColor(calculatedTps),fontVariantNumeric:"tabular-nums"}}>
+                      = {calculatedTps} t/s
+                    </span>
+                    <button onClick={useCalculated}
+                      style={{padding:"6px 14px",borderRadius:5,border:`1px solid ${t.elite}`,background:`${t.elite}18`,
+                        color:t.elite,cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:700}}>
+                      Use this ↓
+                    </button>
+                  </React.Fragment>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Manual TPS entry */}
+          <div style={{fontSize:13,fontWeight:600,color:t.text,marginBottom:10}}>Step 3 — Enter your measured TPS</div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8,flexWrap:"wrap"}}>
+            <div style={{position:"relative",flex:"0 0 160px"}}>
+              <input type="number" min="0.1" step="0.1"
+                value={inputVal}
+                onChange={e=>{setInputVal(e.target.value);}}
+                onBlur={commitTps}
+                placeholder="e.g. 47.3"
+                style={{width:"100%",padding:"10px 14px 10px 14px",borderRadius:7,
+                  border:`2px solid ${tpsValid?tpsColor(parsedTps):t.border}`,
+                  background:t.surfaceBg,color:t.text,fontSize:16,fontFamily:"inherit",
+                  fontWeight:700,outline:"none",fontVariantNumeric:"tabular-nums"}}
+              />
+            </div>
+            <span style={{fontSize:16,color:t.textMuted,fontWeight:500}}>tokens / second</span>
+            <button onClick={commitTps} disabled={!tpsValid}
+              style={{padding:"10px 22px",borderRadius:7,
+                border:`1px solid ${tpsValid?tpsColor(parsedTps):t.border}`,
+                background:tpsValid?`${tpsColor(parsedTps)}20`:t.raisedBg,
+                color:tpsValid?tpsColor(parsedTps):t.textMuted,
+                cursor:tpsValid?"pointer":"not-allowed",fontFamily:"inherit",fontSize:14,fontWeight:700,
+                opacity:tpsValid?1:0.5}}>
+              Save TPS →
+            </button>
+            {tpsValid && (
+              <span style={{fontSize:14,fontWeight:600,color:tpsColor(parsedTps)}}>
+                {tpsLabel(parsedTps)}
+              </span>
+            )}
+          </div>
+
+          {/* Impact preview */}
+          {tpsValid && (
+            <div style={{background:t.dark?"rgba(74,222,128,0.07)":"#f0fdf4",border:`1px solid ${t.dark?"rgba(74,222,128,0.25)":"#bbf7d0"}`,borderRadius:7,padding:"12px 16px",marginTop:4}}>
+              <div style={{fontSize:12,fontWeight:700,color:t.elite,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>
+                Impact on cost table (updates live when you save)
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10}}>
+                {[
+                  ["Measured TPS", `${parsedTps} t/s`, tpsColor(parsedTps)],
+                  ["vs benchmark", `${((m=>m&&m.tps?(parsedTps/(m.tps[Object.keys(m.tps)[0]]||1)*100-100).toFixed(0):null)(LOCAL_MODELS.find(m=>m.model===targetModel)))||"—"}%`, t.textSub],
+                ].map(([label, val, color]) => (
+                  <div key={label} style={{background:t.surfaceBg,borderRadius:5,padding:"8px 10px",border:`1px solid ${t.border}`}}>
+                    <div style={{fontSize:11,color:t.textMuted,marginBottom:3}}>{label}</div>
+                    <div style={{fontSize:16,fontWeight:700,color,fontVariantNumeric:"tabular-nums"}}>{val}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{fontSize:12,color:t.textMuted,marginTop:8,lineHeight:1.6}}>
+                The TPS value flows into: <strong style={{color:t.text}}>amortized cost per token</strong> (lower TPS = higher cost/token),
+                <strong style={{color:t.text}}> value score</strong> (score ÷ blended cost), and
+                <strong style={{color:t.text}}> TPS bar</strong> in the table.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+// ── Root ──────────────────────────────────────────────────────────────────────
+function App() {
+  const [dark, setDark]               = useState(false);
+  const [cloudModels, setCloudModels] = useState(CLOUD_MODELS.map(m=>({...m,isLocal:false})));
+  const [userScores, setUserScores]   = useState({});
+  // userTps: { [modelName]: number } — measured TPS overrides benchmark estimates
+  const [userTps, setUserTps]         = useState({});
+  // Benchmark/TPS modal state lives HERE at App root
+  const [benchmarkModel, setBenchmarkModel] = useState(null);
+
+  const t = dark ? DARK : LIGHT;
+
+  return (
+    <ThemeCtx.Provider value={{t, toggle:()=>setDark(d=>!d)}}>
+      {/* Main app */}
+      <CostIndex
+        cloudModels={cloudModels}
+        onCloudUpdate={setCloudModels}
+        userScores={userScores}
+        onUserScoresChange={setUserScores}
+        onOpenBenchmark={setBenchmarkModel}
+        benchmarkModel={benchmarkModel}
+        userTps={userTps}
+        onUserTpsChange={setUserTps}
+      />
+
+      {/* Modals rendered at App root — position:fixed works correctly here */}
+      {benchmarkModel === "_select" && (
+        <ModalOverlay onClose={() => setBenchmarkModel(null)}>
+          <div style={{
+            background:t.pageBg, border:`2px solid ${t.borderMd}`, borderRadius:12,
+            padding:28, fontFamily:"'IBM Plex Mono','Courier New',monospace",
+            boxShadow:"0 32px 64px rgba(0,0,0,0.4)", color:t.text,
+          }}>
+            <div style={{fontSize:12,color:t.textMuted,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6}}>
+              Measure TPS for local model
+            </div>
+            <h3 style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:t.text,marginBottom:16,letterSpacing:"-0.02em"}}>
+              Select model to measure
+            </h3>
+            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+              {LOCAL_MODELS.map(m => {
+                const ut = userTps[m.model];
+                const benchTps = m.tps ? (m.tps[Object.keys(m.tps)[0]] ?? null) : null;
+                return (
+                  <button
+                    key={m.model}
+                    onClick={() => setBenchmarkModel(m.model)}
+                    style={{
+                      display:"flex",justifyContent:"space-between",alignItems:"center",
+                      padding:"12px 16px",borderRadius:8,border:`1.5px solid ${ut!=null?t.mid:t.border}`,
+                      background:t.surfaceBg,cursor:"pointer",fontFamily:"inherit",textAlign:"left",gap:12,
+                    }}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:14,fontWeight:700,color:t.text,marginBottom:2}}>{m.model}</div>
+                      <div style={{fontSize:12,color:t.textMuted}}>{m.family} · {m.quant} · score: {m.score}</div>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
+                      {ut!=null
+                        ? <span style={{fontSize:13,fontWeight:700,color:t.mid,background:t.dark?"rgba(96,165,250,0.12)":"#eff6ff",padding:"2px 8px",borderRadius:4,border:`1px solid ${t.mid}40`}}>⏱ {ut} t/s</span>
+                        : <span style={{fontSize:12,color:t.textFaint}}>not measured</span>
+                      }
+                      <span style={{fontSize:18,color:t.textMuted}}>›</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setBenchmarkModel(null)}
+              style={{width:"100%",padding:"10px",borderRadius:7,border:`1px solid ${t.border}`,background:t.raisedBg,color:t.textMuted,cursor:"pointer",fontFamily:"inherit",fontSize:14,fontWeight:600}}>
+              Cancel
+            </button>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {benchmarkModel && benchmarkModel !== "_select" && (
+        <TpsPanel
+          targetModel={benchmarkModel}
+          userTps={userTps[benchmarkModel] ?? null}
+          onTpsChange={(val) => {
+            setUserTps(prev => ({ ...prev, [benchmarkModel]: val }));
+            setBenchmarkModel(null);
+          }}
+          onClose={() => setBenchmarkModel(null)}
+        />
+      )}
+    </ThemeCtx.Provider>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+const RATIO_DEFAULT = 25;
+function calcBlended(inp, out, ratio){ return ((inp*ratio)+(out*1))/(ratio+1); }
+
+function CostIndex({cloudModels, onCloudUpdate, userScores, onUserScoresChange, onOpenBenchmark, benchmarkModel, userTps, onUserTpsChange}) {
+  const {t} = useTheme();
+
+  // hardware + hours state
+  const [hwId, setHwId]           = useState("zbook");
+  const [hrsPerDay, setHrsPerDay] = useState(8);
+  const hw = HARDWARE[hwId];
+  // user-editable prices per hardware id
+  const [customPrices, setCustomPrices] = useState(
+    Object.fromEntries(Object.values(HARDWARE).map(h => [h.id, String(h.price)]))
+  );
+  const [priceErrors, setPriceErrors] = useState({zbook:"", macbook:""});
+
+  // resolved price: custom value if valid, else hw default
+  const resolvedPrice = useMemo(() => {
+    const v = parseFloat(customPrices[hwId]);
+    return (!isNaN(v) && v > 0) ? v : hw.price;
+  }, [customPrices, hwId, hw.price]);
+
+  function handlePriceInput(id, raw) {
+    setCustomPrices(p => ({...p, [id]: raw}));
+    const v = parseFloat(raw);
+    setPriceErrors(e => ({...e, [id]: (!raw || isNaN(v) || v <= 0) ? "Enter a valid price > 0" : ""}));
+  }
+
+  // filters / display
+  const [ratio, setRatio]             = useState(RATIO_DEFAULT);
+  const [tierFilter, setTierFilter]   = useState("All");
+  const [famFilter, setFamFilter]     = useState("All");
+  const [showLocal, setShowLocal]     = useState(true);
+  const [sortBy, setSortBy]           = useState("score");
+  const [search, setSearch]           = useState("");
+  const [rState, setRState]           = useState("idle");
+  const [rMsg, setRMsg]               = useState("");
+  const [lastUp, setLastUp]           = useState(null);
+
+  // Amortization stats (reactive — use resolvedPrice not hw.price)
+  const totalHrs   = useMemo(()=> hw.years * 365 * hrsPerDay, [hw, hrsPerDay]);
+  const hrRate     = useMemo(()=> resolvedPrice / totalHrs, [resolvedPrice, totalHrs]);
+
+  // Build local model rows with current hw + hrs + resolvedPrice + user TPS overrides
+  const localRows = useMemo(()=>{
+    const hwForCost = {...hw, price: resolvedPrice};
+    return LOCAL_MODELS.map(m => {
+      // userTps[model] overrides the benchmark estimate if the user has measured it
+      const benchTps   = m.tps[hw.id] ?? null;
+      const measuredTps = userTps[m.model] ?? null;
+      const tps         = measuredTps !== null ? measuredTps : benchTps;
+      const hasUserTps  = measuredTps !== null;
+      const cost = localCostPerMTok(hwForCost, tps, hrsPerDay) ?? 0;
+      return {
+        ...m,
+        score: m.score,
+        hasUserTps,
+        family: m.family,
+        isLocal: true,
+        variant: m.quant || "",
+        tps,
+        benchTps,       // keep original for display comparison
+        input: cost,
+        output: cost,
+        blended: cost,
+      };
+    });
+  }, [hw, hrsPerDay, resolvedPrice, userTps]);
+
+  // Combine + process
+  const allRows = useMemo(()=>[...cloudModels, ...localRows],[cloudModels,localRows]);
+
+  const families = useMemo(()=>{
+    const s=new Set();
+    cloudModels.forEach(m=>s.add(m.family));
+    LOCAL_MODELS.forEach(m=>s.add(m.family));
+    return["All",...Array.from(s).sort()];
+  },[cloudModels]);
+
+  const maxTps = useMemo(()=>Math.max(...allRows.map(m=>m.tps||0),1),[allRows]);
+
+  const processed = useMemo(()=>
+    allRows.map(m=>({
+      ...m,
+      blended: m.isLocal ? m.blended : calcBlended(m.input,m.output,ratio),
+    })), [allRows,ratio]);
+
+  const filtered = useMemo(()=>{
+    let list = processed.filter(m=>{
+      if(!showLocal&&m.isLocal) return false;
+      if(tierFilter!=="All"&&getTier(m).label!==tierFilter) return false;
+      if(famFilter!=="All"&&m.family!==famFilter) return false;
+      if(search){const q=search.toLowerCase();if(!m.model.toLowerCase().includes(q)&&!m.family.toLowerCase().includes(q))return false;}
+      return true;
+    });
+    list.sort((a,b)=>{
+      if(sortBy==="score")   return b.score-a.score;
+      if(sortBy==="tps")     return (b.tps||0)-(a.tps||0);
+      if(sortBy==="blended") return a.blended-b.blended;
+      if(sortBy==="value"){const va=a.blended>0?a.score/a.blended:0,vb=b.blended>0?b.score/b.blended:0;return vb-va;}
+      return 0;
+    });
+    return list.map((m,i)=>({...m,_rank:i+1}));
+  },[processed,tierFilter,famFilter,showLocal,sortBy,search]);
+
+  // Group by tier when sorted by score
+  const rows = useMemo(()=>{
+    if(sortBy!=="score") return filtered;
+    const out=[];let last=null;
+    filtered.forEach(m=>{
+      const lbl=getTier(m).label;
+      if(lbl!==last){out.push({_tierHdr:true,label:lbl});last=lbl;}
+      out.push(m);
+    });
+    return out;
+  },[filtered,sortBy]);
+
+  async function doRefresh(){
+    setRState("loading");setRMsg("");
+    try{
+      const updated = await fetchLatestModels(cloudModels);
+      const nc = updated.length - cloudModels.length;
+      onCloudUpdate(updated);
+      setLastUp(new Date());
+      setRMsg(nc>0?`Updated · ${nc} new model${nc>1?"s":""} added`:"Updated · prices and scores refreshed");
+      setRState("done");
+    }catch(e){setRMsg(`Error: ${e.message}`);setRState("error");}
+  }
+
+  const rColor = rState==="error"?"#dc2626":t.refreshTxt;
+  const hwColor = hw.color;
+
+  const TH = {padding:"9px 8px",fontSize:16,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:t.textMuted,background:t.headerBg,borderBottom:`1px solid ${t.borderMd}`,whiteSpace:"nowrap",verticalAlign:"bottom",cursor:"pointer",userSelect:"none"};
+  const TD = {padding:"8px 8px",borderBottom:`1px solid ${t.border}`,verticalAlign:"middle",background:"inherit"};
+
+  function SortTH({col,children,style={}}){
+    const active=sortBy===col;
+    return <th onClick={()=>setSortBy(col)} style={{...TH,...style,color:active?(t.dark?"#f1f5f9":t.text):t.textMuted,background:active?(t.dark?"#111827":t.raisedBg):t.headerBg}}>{children}{active?" ↓":""}</th>;
+  }
+
+  return (
+    <div style={{background:t.pageBg,padding:"18px 14px 48px",fontFamily:"'IBM Plex Mono','Courier New',monospace",color:t.text}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Syne:wght@700;800&display=swap');
+        .ctr:hover td{background:${t.dark?"rgba(255,255,255,0.025)":"rgba(0,0,0,0.02)"}!important;}
+        /* ── Cross-browser range slider ── */
+        input[type=range]{
+          -webkit-appearance:none; appearance:none;
+          width:100%; height:20px; background:transparent;
+          cursor:pointer; outline:none; padding:0; margin:0;
+        }
+        input[type=range]::-webkit-slider-runnable-track{
+          height:6px; border-radius:3px;
+          background:${t.barTrack};
+        }
+        input[type=range]::-webkit-slider-thumb{
+          -webkit-appearance:none; appearance:none;
+          width:18px; height:18px; border-radius:50%;
+          background:${t.refreshTxt}; cursor:pointer;
+          margin-top:-6px; border:2px solid ${t.surfaceBg};
+          box-shadow:0 0 0 1px ${t.refreshTxt};
+        }
+        input[type=range]::-moz-range-track{
+          height:6px; border-radius:3px; background:${t.barTrack}; border:none;
+        }
+        input[type=range]::-moz-range-thumb{
+          width:18px; height:18px; border-radius:50%;
+          background:${t.refreshTxt}; cursor:pointer;
+          border:2px solid ${t.surfaceBg}; box-shadow:0 0 0 1px ${t.refreshTxt};
+        }
+        input[type=range]::-ms-track{ height:6px; background:transparent; border-color:transparent; color:transparent; }
+        input[type=range]::-ms-fill-lower{ background:${t.barTrack}; border-radius:3px; }
+        input[type=range]::-ms-fill-upper{ background:${t.barTrack}; border-radius:3px; }
+        input[type=range]::-ms-thumb{ width:18px; height:18px; border-radius:50%; background:${t.refreshTxt}; cursor:pointer; }
+        input[type=text],input[type=number]{font-family:inherit;}
+        @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+        ::-webkit-scrollbar{width:5px;height:5px;}
+        ::-webkit-scrollbar-track{background:${t.pageBg};}
+        ::-webkit-scrollbar-thumb{background:${t.borderMd};border-radius:3px;}
+        select{font-family:inherit;}
+        .ctr a:hover{opacity:0.75;}
+        a{font-family:inherit;}
+      `}</style>
+
+      <div style={{maxWidth:1220,margin:"0 auto"}}>
+
+        {/* ── Header ── */}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12,marginBottom:14}}>
+          <div>
+            <h1 style={{fontFamily:"'Syne',sans-serif",fontSize:26,fontWeight:800,color:t.text,letterSpacing:"-0.03em",marginBottom:3}}>AI Model Intelligence &amp; Cost Index</h1>
+            <p style={{fontSize:14,color:t.textMuted,lineHeight:1.8}}>
+              100+ models · Artificial Analysis v4.0 · Cloud API + local inference · TPS normalized · May 2026
+              {lastUp&&<span style={{marginLeft:8,color:t.refreshTxt}}>· refreshed {lastUp.toLocaleTimeString()}</span>}
+            </p>
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <button onClick={doRefresh} disabled={rState==="loading"} style={{padding:"7px 14px",borderRadius:6,fontSize:14,fontWeight:700,fontFamily:"inherit",cursor:rState==="loading"?"not-allowed":"pointer",border:`1px solid ${rState==="error"?"#dc2626":t.refreshBdr}`,background:rState==="loading"?t.raisedBg:rState==="error"?"#fef2f2":t.refreshBg,color:rState==="error"?"#dc2626":t.refreshTxt,display:"flex",alignItems:"center",gap:6,opacity:rState==="loading"?0.65:1}}>
+              <span style={{display:"inline-block",animation:rState==="loading"?"spin 1s linear infinite":"none",fontSize:14}}>{rState==="done"?"✓":rState==="error"?"✗":"⟳"}</span>
+              {rState==="loading"?"Fetching…":"⟳ Refresh cloud data"}
+            </button>
+            <ApiKeySettings/>
+            <ThemeToggle/>
+          </div>
+        </div>
+        {rMsg&&<div style={{fontSize:16,color:rColor,marginBottom:8}}>{rMsg}</div>}
+
+        {/* ── Local inference settings ── */}
+        <div style={{background:t.dark?`${hwColor}10`:t.localBadgeBg,border:`1.5px solid ${hwColor}55`,borderRadius:10,padding:"14px 16px",marginBottom:12}}>
+          <div style={{display:"flex",flexWrap:"wrap",gap:16,alignItems:"flex-start"}}>
+
+            {/* Hardware selector */}
+            <div style={{flex:"1 1 260px",minWidth:220}}>
+              <div style={{fontSize:16,fontWeight:700,color:hwColor,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>
+                📦 Local Inference Hardware
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {Object.values(HARDWARE).map(h=>{
+                  const isActive = hwId===h.id;
+                  const priceVal = customPrices[h.id];
+                  const priceErr = priceErrors[h.id];
+                  const resolvedForCard = (()=>{ const v=parseFloat(priceVal); return(!isNaN(v)&&v>0)?v:h.price; })();
+                  return (
+                    <div key={h.id} style={{borderRadius:7,border:`1.5px solid ${isActive?h.color:t.border}`,background:isActive?`${h.color}14`:t.surfaceBg,transition:"all .15s",overflow:"hidden"}}>
+                      {/* clickable top row */}
+                      <button onClick={()=>setHwId(h.id)} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",width:"100%",background:"transparent",border:"none",cursor:"pointer",textAlign:"left",fontFamily:"inherit"}}>
+                        <span style={{fontSize:18,lineHeight:1,flexShrink:0,marginTop:1}}>{h.icon}</span>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:14,fontWeight:700,color:isActive?h.color:t.text,lineHeight:1.3}}>{h.label}</div>
+                          <div style={{fontSize:15,color:t.textMuted,marginTop:2,lineHeight:1.4}}>{h.sub}</div>
+                          <div style={{fontSize:15,color:t.textFaint,marginTop:1}}>{h.runtime}</div>
+                        </div>
+                        <div style={{textAlign:"right",flexShrink:0,marginLeft:8}}>
+                          <div style={{fontSize:14,fontWeight:700,color:isActive?h.color:t.textSub}}>${resolvedForCard.toLocaleString()}</div>
+                          <div style={{fontSize:11,color:t.textFaint}}>{resolvedForCard!==h.price?"custom":"MSRP"}</div>
+                        </div>
+                      </button>
+                      {/* price input — always visible */}
+                      <div style={{padding:"0 12px 10px",display:"flex",flexDirection:"column",gap:3}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <span style={{fontSize:15,color:t.textMuted,whiteSpace:"nowrap"}}>Your price ($):</span>
+                          <div style={{position:"relative",flex:1}}>
+                            <span style={{position:"absolute",left:7,top:"50%",transform:"translateY(-50%)",fontSize:16,color:t.textMuted,pointerEvents:"none"}}>$</span>
+                            <input
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={priceVal}
+                              onChange={e=>handlePriceInput(h.id, e.target.value)}
+                              onClick={e=>{ e.stopPropagation(); setHwId(h.id); }}
+                              placeholder={String(h.price)}
+                              style={{
+                                width:"100%",padding:"4px 6px 4px 18px",
+                                borderRadius:5,border:`1px solid ${priceErr?(t.dark?"#f87171":"#dc2626"):isActive?`${h.color}70`:t.border}`,
+                                background:t.raisedBg,color:t.text,fontSize:14,
+                                fontFamily:"inherit",outline:"none",
+                              }}
+                            />
+                          </div>
+                          {resolvedForCard!==h.price&&(
+                            <button
+                              onClick={e=>{e.stopPropagation();handlePriceInput(h.id,String(h.price));}}
+                              title="Reset to MSRP"
+                              style={{padding:"3px 6px",borderRadius:4,border:`1px solid ${t.border}`,background:"transparent",color:t.textMuted,fontSize:15,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>
+                              ↺ reset
+                            </button>
+                          )}
+                        </div>
+                        {priceErr&&<div style={{fontSize:15,color:t.dark?"#f87171":"#dc2626"}}>{priceErr}</div>}
+                        {!priceErr&&resolvedForCard!==h.price&&(
+                          <div style={{fontSize:15,color:h.color}}>
+                            Custom: ${resolvedForCard.toLocaleString()} vs MSRP ${h.price.toLocaleString()} ({resolvedForCard<h.price?"-":"+"}${Math.abs(resolvedForCard-h.price).toLocaleString()})
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Hours per day + amortization summary */}
+            <div style={{flex:"1 1 240px",minWidth:200}}>
+              <div style={{fontSize:16,fontWeight:700,color:hwColor,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>
+                Amortization Settings
+              </div>
+
+              <div style={{background:t.surfaceBg,border:`1px solid ${t.border}`,borderRadius:7,padding:"12px 14px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,flexWrap:"wrap"}}>
+                  <span style={{fontSize:14,color:t.textSub,minWidth:120}}>Hours / day: <strong style={{color:t.text,fontSize:16}}>{hrsPerDay}</strong></span>
+                  <input type="range" min={1} max={12} value={hrsPerDay} onChange={e=>setHrsPerDay(Number(e.target.value))} style={{flex:1,minWidth:100}}/>
+                  <span style={{fontSize:16,color:t.textFaint,whiteSpace:"nowrap"}}>1 – 12 hrs</span>
+                </div>
+
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,fontSize:16}}>
+                  {[
+                    ["Period",`${hw.years} years`],
+                    ["Total hrs",`${totalHrs.toLocaleString()} hrs`],
+                    ["Cost / hr",`$${hrRate.toFixed(4)}`],
+                    ["Hardware","$"+resolvedPrice.toLocaleString()+(resolvedPrice!==hw.price?" (custom)":" MSRP")],
+                  ].map(([k,v])=>(
+                    <div key={k} style={{background:t.raisedBg,borderRadius:5,padding:"6px 8px"}}>
+                      <div style={{color:t.textFaint,fontSize:15,marginBottom:1}}>{k}</div>
+                      <div style={{color:t.text,fontWeight:700,fontSize:14}}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{marginTop:10,fontSize:16,color:t.textMuted,lineHeight:1.6}}>
+                  Cost per token = <span style={{color:hwColor}}>${hrRate.toFixed(4)}/hr</span> ÷ (TPS × 3600) × 1M
+                  <br/>
+                  <span style={{color:t.textFaint,fontSize:15}}>
+                    Example: 100 t/s → ${(hrRate/(100*3600)*1e6).toFixed(3)}/M tokens
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Per-model cost snapshot */}
+            <div style={{flex:"1 1 200px",minWidth:180}}>
+              <div style={{fontSize:16,fontWeight:700,color:hwColor,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>
+                Sample Costs @ {hrsPerDay}hrs/day
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                {localRows.filter(m=>m.tps&&m.blended>0).slice(0,6).map(m=>(
+                  <div key={m.model} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"5px 8px",background:t.surfaceBg,borderRadius:5,border:`1px solid ${t.border}`}}>
+                    <div style={{flex:1,overflow:"hidden",minWidth:0}}>
+                      <div style={{fontSize:13,color:t.text,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.model}</div>
+                      <div style={{fontSize:11,color:t.textMuted}}>{m.tps} t/s &middot; {m.params||m.quant}</div>
+                    </div>
+                    <span style={{fontSize:15,fontWeight:700,color:hwColor,whiteSpace:"nowrap",flexShrink:0,fontVariantNumeric:"tabular-nums"}}>
+                      ${m.blended.toFixed(3)}<span style={{fontSize:11,opacity:0.6,fontWeight:400}}>/M</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Top controls bar ── */}
+        <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10,alignItems:"center"}}>
+          {/* vibe ratio */}
+          <div style={{background:t.calloutBg,border:`1px solid ${t.calloutBdr}`,borderRadius:6,padding:"7px 12px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            <span style={{fontSize:16,color:t.calloutLabel,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em"}}>⚡ Ratio</span>
+            <span style={{fontSize:14,color:t.textSub,minWidth:80}}>In:Out = <strong style={{color:t.text}}>{ratio}:1</strong></span>
+            <input type="range" min={1} max={40} value={ratio} onChange={e=>setRatio(Number(e.target.value))} style={{width:120}}/>
+            <span style={{fontSize:16,color:t.textMuted}}>25:1 vibe · 3:1 chat · 8:1 RAG</span>
+          </div>
+
+          {/* local toggle */}
+          <button onClick={()=>setShowLocal(v=>!v)} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${showLocal?hwColor:t.border}`,background:showLocal?`${hwColor}14`:t.surfaceBg,color:showLocal?hwColor:t.textMuted,fontSize:14,fontWeight:600,fontFamily:"inherit",cursor:"pointer"}}>
+            {showLocal?"📦 Local ON":"📦 Local OFF"}
+          </button>
+
+          {/* benchmark launcher */}
+          <button onClick={()=>onOpenBenchmark("_select")} style={{padding:"5px 12px",borderRadius:6,border:`1px solid ${t.mid}`,background:t.dark?`${t.mid}14`:`${t.mid}10`,color:t.mid,fontSize:14,fontWeight:600,fontFamily:"inherit",cursor:"pointer",display:"flex",alignItems:"center",gap:6}}>
+            ⏱ Measure Local TPS
+          </button>
+
+          {/* search */}
+          <input type="text" placeholder="Search…" value={search} onChange={e=>setSearch(e.target.value)} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${t.border}`,background:t.surfaceBg,color:t.text,fontSize:14,outline:"none",width:130}}/>
+
+          <span style={{marginLeft:"auto",fontSize:16,color:t.textFaint}}>{filtered.length} models</span>
+        </div>
+
+        {/* Tier + vendor filters */}
+        <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10,alignItems:"center"}}>
+          <span style={{fontSize:16,color:t.textFaint,textTransform:"uppercase",letterSpacing:"0.08em",marginRight:2}}>Tier:</span>
+          {["All","Elite","High","Mid","Efficient","Compact"].map(f=>{
+            const col=f==="All"?t.borderMd:tierColor(f,t);const active=tierFilter===f;
+            return <button key={f} onClick={()=>setTierFilter(f)} style={{padding:"3px 10px",borderRadius:4,fontSize:16,fontWeight:700,letterSpacing:"0.06em",textTransform:"uppercase",border:"1px solid",fontFamily:"inherit",cursor:"pointer",borderColor:active?col:t.border,background:active?`${col}20`:"transparent",color:active?col:t.textMuted}}>{f}</button>;
+          })}
+          <span style={{width:1,background:t.border,height:14,display:"inline-block",margin:"0 4px"}}/>
+          <span style={{fontSize:16,color:t.textFaint,textTransform:"uppercase",letterSpacing:"0.08em",marginRight:2}}>Vendor:</span>
+          <select value={famFilter} onChange={e=>setFamFilter(e.target.value)} style={{padding:"3px 8px",borderRadius:4,border:`1px solid ${t.border}`,background:t.surfaceBg,color:t.text,fontSize:16,cursor:"pointer",outline:"none"}}>
+            {families.map(f=><option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+
+        {/* ── Table ── */}
+        <div style={{overflowX:"auto",border:`1.5px solid ${t.borderMd}`,borderRadius:10,boxShadow:t.dark?"0 2px 16px rgba(0,0,0,0.35)":"0 2px 12px rgba(0,0,0,0.07)"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:1000}}>
+            <thead>
+              {/* Group header row */}
+              <tr style={{background:t.dark?"#060a14":t.raisedBg}}>
+                <th colSpan={3} style={{...TH,textAlign:"left",paddingLeft:12,borderBottom:`1px solid ${t.border}`,fontSize:11,color:t.textFaint,letterSpacing:"0.1em",fontWeight:600,borderRight:`1px solid ${t.borderMd}`}}>MODEL</th>
+                <th colSpan={2} style={{...TH,textAlign:"center",borderBottom:`1px solid ${t.border}`,fontSize:11,color:t.textFaint,letterSpacing:"0.1em",fontWeight:600,borderRight:`1px solid ${t.borderMd}`}}>PERFORMANCE</th>
+                <th colSpan={3} style={{...TH,textAlign:"center",borderBottom:`1px solid ${t.border}`,fontSize:11,color:t.textFaint,letterSpacing:"0.1em",fontWeight:600,borderRight:`1px solid ${t.borderMd}`}}>ARCHITECTURE</th>
+                <th colSpan={4} style={{...TH,textAlign:"center",borderBottom:`1px solid ${t.border}`,fontSize:11,color:t.textFaint,letterSpacing:"0.1em",fontWeight:600}}>COST (click → pricing)</th>
+              </tr>
+              {/* Column header row */}
+              <tr style={{background:t.headerBg}}>
+                <th style={{...TH,textAlign:"left",paddingLeft:12,width:34,borderRight:`1px solid ${t.border}`}}>#</th>
+                <th style={{...TH,textAlign:"left",paddingLeft:8,minWidth:200}}>Model</th>
+                <th style={{...TH,textAlign:"left",minWidth:90,borderRight:`1px solid ${t.borderMd}`}}>Vendor</th>
+                <SortTH col="score" style={{minWidth:160,textAlign:"left"}}>Score ↕</SortTH>
+                <SortTH col="tps" style={{minWidth:120,textAlign:"left",borderRight:`1px solid ${t.borderMd}`}}>
+                  Speed
+                  <div style={{fontSize:11,color:t.textFaint,fontWeight:400,textTransform:"none",letterSpacing:0,marginTop:1}}>t/s · API or {hw.label.split(" ").slice(-1)[0]}</div>
+                </SortTH>
+                <th style={{...TH,textAlign:"right",minWidth:70,cursor:"default"}}>
+                  Context
+                  <div style={{fontSize:11,color:t.textFaint,fontWeight:400,textTransform:"none",letterSpacing:0,marginTop:1}}>window</div>
+                </th>
+                <th style={{...TH,textAlign:"left",minWidth:90,cursor:"default"}}>
+                  Params
+                  <div style={{fontSize:11,color:t.textFaint,fontWeight:400,textTransform:"none",letterSpacing:0,marginTop:1}}>total/active</div>
+                </th>
+                <th style={{...TH,textAlign:"left",minWidth:64,cursor:"default",borderRight:`1px solid ${t.borderMd}`}}>Arch</th>
+                <th style={{...TH,textAlign:"right",minWidth:72}}>In $/M</th>
+                <th style={{...TH,textAlign:"right",minWidth:76}}>Out $/M</th>
+                <SortTH col="blended" style={{textAlign:"right",minWidth:110}}>
+                  Blended ↕
+                  <div style={{fontSize:11,color:t.textFaint,fontWeight:400,textTransform:"none",letterSpacing:0,marginTop:1}}>{ratio}:1 ratio</div>
+                </SortTH>
+                <SortTH col="value" style={{textAlign:"right",minWidth:60}}>Value ↕</SortTH>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((item,idx)=>{
+                if(item._tierHdr){
+                  const col=tierColor(item.label,t);
+                  return(
+                    <tr key={`hdr-${item.label}`}>
+                      <td colSpan={12} style={{padding:"14px 10px 5px",background:t.pageBg}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <div style={{width:8,height:8,borderRadius:"50%",background:col,flexShrink:0}}/>
+                          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:14,color:col,letterSpacing:"0.1em",textTransform:"uppercase"}}>{item.label}</span>
+                          <span style={{fontSize:16,color:t.textFaint}}>· {TIERS.find(x=>x.label===item.label)?.desc}</span>
+                          <div style={{flex:1,height:1,background:`${col}30`,marginLeft:6}}/>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+
+                const m = item;
+                const tier = getTier(m);
+                const tc = tierColor(tier.label,t);
+                const val = m.blended>0 ? m.score/m.blended : 0;
+                const vc = valColor(val,t);
+                const rowBg = idx%2===0 ? t.surfaceBg : t.altRow;
+                const mHwColor = m.isLocal ? hwColor : tc;
+
+                const fmtCost = (v) => v===0?"—":v<0.001?`$${v.toFixed(5)}`:v<1?`$${v.toFixed(3)}`:`$${v.toFixed(2)}`;
+
+                const cardUrl    = m.isLocal
+                  ? (m.hfUrl || `https://huggingface.co/models?search=${encodeURIComponent(m.model)}`)
+                  : (MODEL_CARD_URL[m.model] || `https://huggingface.co/models?search=${encodeURIComponent(m.model)}`);
+                const pricingUrl = m.isLocal
+                  ? "https://artificialanalysis.ai/hardware"
+                  : (PRICING_URL[m.family] || "https://artificialanalysis.ai/");
+                const linkStyle  = {color:"inherit",textDecoration:"none",cursor:"pointer"};
+                const costLinkStyle = {
+                  fontVariantNumeric:"tabular-nums",fontSize:15,fontWeight:700,
+                  color:m.isLocal?hwColor:t.text,
+                  textDecoration:"none",borderBottom:`1px dashed ${t.borderMd}`,
+                  cursor:"pointer",paddingBottom:1,
+                };
+                const costLinkDimStyle = {
+                  fontVariantNumeric:"tabular-nums",fontSize:15,
+                  color:m.isLocal?hwColor:t.textSub,
+                  textDecoration:"none",borderBottom:`1px dashed ${t.borderMd}`,
+                  cursor:"pointer",paddingBottom:1,
+                };
+
+                // ── Format helpers ──────────────────────────────────────────────
+                const ctxStr = !m.ctx ? "—"
+                  : m.ctx >= 10000 ? "10M"
+                  : m.ctx >= 1000  ? (m.ctx/1000).toFixed(m.ctx%1000===0?0:1)+"M"
+                  : m.ctx+"K";
+                const ctxColor = m.ctx >= 1000
+                  ? (t.dark?"#4ade80":"#14532d")
+                  : m.ctx >= 128 ? t.text : t.textMuted;
+                const archIsMoE = m.arch && m.arch.startsWith("MoE");
+                const archColor = archIsMoE
+                  ? (t.dark?"#c084fc":"#6d28d9")
+                  : (t.dark?"#60a5fa":"#1d4ed8");
+                const archBorder = archIsMoE
+                  ? (t.dark?"rgba(192,132,252,0.45)":"rgba(109,40,217,0.3)")
+                  : (t.dark?"rgba(96,165,250,0.45)":"rgba(29,78,216,0.3)");
+                const archBg = archIsMoE
+                  ? (t.dark?"rgba(192,132,252,0.09)":"rgba(109,40,217,0.05)")
+                  : (t.dark?"rgba(96,165,250,0.09)":"rgba(29,78,216,0.05)");
+                const paramsColor = !m.params || m.params==="undisclosed"
+                  ? t.textFaint
+                  : m.params.includes("est.") ? t.textMuted : t.textSub;
+
+                return (
+                  <tr key={`${m.model}-${m.variant}-${m.isLocal}`} className="ctr"
+                    style={{background:rowBg, borderBottom:`1px solid ${t.border}`}}>
+
+                    {/* # rank */}
+                    <td style={{...TD, width:34, paddingLeft:12, textAlign:"right",
+                      color:t.textFaint, fontSize:13, fontWeight:600,
+                      borderRight:`1px solid ${t.border}`}}>
+                      {m._rank}
+                    </td>
+
+                    {/* Model name + badges */}
+                    <td style={{...TD, paddingLeft:10, paddingRight:8,
+                      borderLeft:`3px solid ${tc}`, verticalAlign:"middle"}}>
+                      <div style={{display:"flex", alignItems:"center", gap:5, flexWrap:"nowrap", overflow:"hidden"}}>
+                        <a href={cardUrl} target="_blank" rel="noopener noreferrer"
+                           style={{color:t.text, fontWeight:700, fontSize:14,
+                                   textDecoration:"none", whiteSpace:"nowrap",
+                                   borderBottom:`1.5px solid ${tc}55`, paddingBottom:1}}>
+                          {m.model}
+                        </a>
+                        {m.reasoning && <span style={{fontSize:13, flexShrink:0}} title="Reasoning / thinking model">💡</span>}
+                        {m.isLocal && (
+                          <span style={{fontSize:10, padding:"1px 5px", borderRadius:3, flexShrink:0,
+                            background:`${hwColor}15`, color:hwColor, fontWeight:800,
+                            border:`1px solid ${hwColor}40`, whiteSpace:"nowrap"}}>LOCAL</span>
+                        )}
+                        {m.hasUserTps && (
+                          <span style={{fontSize:10, padding:"1px 5px", borderRadius:3, flexShrink:0,
+                            background:t.dark?"rgba(96,165,250,0.12)":"#eff6ff",
+                            color:t.mid, fontWeight:700, border:`1px solid ${t.mid}40`,
+                            whiteSpace:"nowrap"}} title={`Your measured TPS: ${m.tps} t/s`}>
+                            ⏱{m.tps}
+                          </span>
+                        )}
+                      </div>
+                      {/* Sub-line: variant + note (collapsed by default) */}
+                      {(m.variant || m.note || m.isLocal) && (
+                        <div style={{display:"flex", alignItems:"center", gap:6, marginTop:3, flexWrap:"wrap"}}>
+                          {m.variant && (
+                            <span style={{fontSize:11, color:t.textMuted, background:t.raisedBg,
+                              padding:"0 5px", borderRadius:3, border:`1px solid ${t.border}`,
+                              whiteSpace:"nowrap"}}>{m.variant}</span>
+                          )}
+                          {m.note && (
+                            <span style={{fontSize:11, color:m.note.startsWith("No public")?"#dc2626":t.textMuted,
+                              lineHeight:1.4, whiteSpace:"normal"}}>
+                              {m.note}
+                            </span>
+                          )}
+                          {m.isLocal && (
+                            <button onClick={e=>{e.stopPropagation();onOpenBenchmark(m.model);}}
+                              style={{fontSize:11, padding:"1px 6px", borderRadius:3, flexShrink:0,
+                                background:t.dark?`${t.mid}15`:`${t.mid}10`, color:t.mid,
+                                fontWeight:700, border:`1px solid ${t.mid}40`,
+                                cursor:"pointer", fontFamily:"inherit"}}>⏱ measure</button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+
+                    {/* Vendor chip */}
+                    <td style={{...TD, verticalAlign:"middle",
+                      borderRight:`1px solid ${t.borderMd}`}}>
+                      <FamilyChip family={m.family} isLocal={m.isLocal} hwColor={hwColor}/>
+                    </td>
+
+                    {/* Score bar */}
+                    <td style={{...TD, minWidth:160, verticalAlign:"middle"}}>
+                      <ScoreBar score={m.score} color={tc}/>
+                    </td>
+
+                    {/* TPS bar */}
+                    <td style={{...TD, minWidth:110, verticalAlign:"middle",
+                      borderRight:`1px solid ${t.borderMd}`}}>
+                      <TpsBar tps={m.tps} maxTps={maxTps} isLocal={m.isLocal} hwColor={hwColor} tierCol={tc}/>
+                    </td>
+
+                    {/* Context window */}
+                    <td style={{...TD, textAlign:"right", minWidth:68, verticalAlign:"middle"}}>
+                      <span style={{fontVariantNumeric:"tabular-nums", fontSize:13,
+                        fontWeight:700, color:ctxColor}}>{ctxStr}</span>
+                    </td>
+
+                    {/* Params */}
+                    <td style={{...TD, textAlign:"left", minWidth:88, verticalAlign:"middle"}}>
+                      <span style={{fontSize:12, fontWeight:600, fontVariantNumeric:"tabular-nums",
+                        color:paramsColor,
+                        fontStyle:!m.params||m.params==="undisclosed"?"italic":"normal"}}>
+                        {m.params||"—"}
+                      </span>
+                    </td>
+
+                    {/* Arch badge */}
+                    <td style={{...TD, textAlign:"left", minWidth:62, verticalAlign:"middle",
+                      borderRight:`1px solid ${t.borderMd}`}}>
+                      {m.arch ? (
+                        <span style={{fontSize:11, fontWeight:700, padding:"2px 7px",
+                          borderRadius:4, whiteSpace:"nowrap",
+                          color:archColor, border:`1px solid ${archBorder}`,
+                          background:archBg}}>
+                          {archIsMoE ? "MoE" : "Dense"}
+                        </span>
+                      ) : <span style={{color:t.textFaint}}>—</span>}
+                    </td>
+
+                    {/* In cost */}
+                    <td style={{...TD, textAlign:"right", verticalAlign:"middle"}}>
+                      {m.isLocal ? (
+                        <span style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:1}}>
+                          <span style={{fontVariantNumeric:"tabular-nums",fontSize:14,fontWeight:700,
+                            color:m.tps?hwColor:t.textFaint}}>
+                            {fmtCost(m.input)}
+                          </span>
+                          {m.tps&&<span style={{fontSize:10,color:t.textFaint,lineHeight:1}}>hw/Mtok</span>}
+                        </span>
+                      ) : (
+                        <a href={pricingUrl} target="_blank" rel="noopener noreferrer"
+                           title={`${m.family} pricing`}
+                           style={{fontVariantNumeric:"tabular-nums",fontSize:14,fontWeight:700,
+                             color:t.text,textDecoration:"none",
+                             borderBottom:`1px dashed ${t.borderMd}`,paddingBottom:1}}>
+                          {fmtCost(m.input)}
+                        </a>
+                      )}
+                    </td>
+
+                    {/* Out cost — same as In for local (hardware rate is symmetric) */}
+                    <td style={{...TD, textAlign:"right", verticalAlign:"middle"}}>
+                      {m.isLocal ? (
+                        <span style={{fontVariantNumeric:"tabular-nums",fontSize:14,
+                          color:m.tps?hwColor:t.textFaint}}>
+                          {m.tps ? "= In" : "—"}
+                        </span>
+                      ) : (
+                        <a href={pricingUrl} target="_blank" rel="noopener noreferrer"
+                           title={`${m.family} pricing`}
+                           style={{fontVariantNumeric:"tabular-nums",fontSize:14,
+                             color:t.textSub,textDecoration:"none",
+                             borderBottom:`1px dashed ${t.borderMd}`,paddingBottom:1}}>
+                          {fmtCost(m.output)}
+                        </a>
+                      )}
+                    </td>
+
+                    {/* Blended cost — local = hardware cost (ratio irrelevant), cloud = weighted by ratio */}
+                    <td style={{...TD, textAlign:"right", verticalAlign:"middle"}}>
+                      {m.isLocal ? (
+                        <span style={{fontVariantNumeric:"tabular-nums",fontSize:14,fontWeight:700,
+                          display:"inline-block",padding:"2px 8px",borderRadius:5,
+                          color:m.tps?hwColor:t.textFaint,
+                          background:m.tps?`${hwColor}15`:t.raisedBg,
+                          border:`1px solid ${m.tps?hwColor+"50":t.border}`}}
+                          title={m.tps?"Hardware amortized cost per million tokens (ratio has no effect — in=out for local hardware)":"Model too large for this hardware"}>
+                          {fmtCost(m.blended)}
+                        </span>
+                      ) : (
+                        <a href={pricingUrl} target="_blank" rel="noopener noreferrer"
+                           title={`Blended at ${ratio}:1 ratio · click for pricing`}
+                           style={{fontVariantNumeric:"tabular-nums",fontSize:14,fontWeight:700,
+                             display:"inline-block",padding:"2px 8px",borderRadius:5,
+                             color:t.text,background:t.raisedBg,
+                             border:`1px solid ${t.border}`,textDecoration:"none"}}>
+                          {fmtCost(m.blended)}
+                        </a>
+                      )}
+                    </td>
+
+                    {/* Value score */}
+                    <td style={{...TD, textAlign:"right", verticalAlign:"middle"}}>
+                      <a href="https://artificialanalysis.ai/leaderboards/models"
+                         target="_blank" rel="noopener noreferrer"
+                         title="Value = Score ÷ Blended Cost (Artificial Analysis)"
+                         style={{fontVariantNumeric:"tabular-nums", fontSize:15, fontWeight:800,
+                           color:vc, textDecoration:"none",
+                           borderBottom:`1px dashed ${vc}70`, paddingBottom:1}}>
+                        {val < 99999 ? val.toFixed(1) : "∞"}
+                      </a>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        <div style={{marginTop:16,fontSize:12,color:t.textMuted,lineHeight:1.8,borderTop:`1px solid ${t.border}`,paddingTop:12}}>
+          <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:6}}>
+            {[["Elite ≥58",t.elite],["High 52-57",t.high],["Mid 46-51",t.mid],["Efficient 36-45",t.efficient],["Compact <36","#9ca3af"]].map(([label,color])=>(
+              <span key={label} style={{display:"flex",alignItems:"center",gap:4}}>
+                <span style={{width:10,height:10,borderRadius:2,background:color,display:"inline-block",flexShrink:0}}/>
+                <span>{label}</span>
+              </span>
+            ))}
+            <span style={{color:t.textFaint}}>·</span>
+            <span>📦 LOCAL = self-hosted</span>
+            <span>💡 = reasoning model</span>
+            <span style={{color:t.textFaint}}>·</span>
+            <span>Value = Score ÷ Blended Cost (higher = better)</span>
+            <span style={{color:t.textFaint}}>·</span>
+            <span>Click model name = model card · Click cost = pricing page</span>
+          </div>
+          <div style={{fontSize:11,color:t.textFaint}}>
+            Params: <em>est.</em> = scaling-law estimate · <em>undisclosed</em> = vendor has not published · Cloud TPS: AA 72hr rolling median · Local TPS: llama.cpp Vulkan/RADV (ZBook) + MLX Metal (Mac), community benchmarks Jun 2026
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
