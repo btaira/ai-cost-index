@@ -12,6 +12,7 @@ This project shows cloud and local models side-by-side using the same cost units
 
 - **Open the app**: `index.html` (double-click in Explorer or run `start index.html` on Windows)
 - **Edit source**: `App.jsx` (same code as `index.html`, without the CDN wrapper)
+- **For websites**: Copy `index.html` to your web directory; it works standalone or embedded
 
 ## Quick start
 
@@ -80,6 +81,28 @@ For the full template and additional details, see `CLAUDE.md`.
 - **Cloud pricing**: official vendor pages (linked from the UI)
 - **Local model list/scores**: Onyx Self-Hosted LLM Leaderboard
 - **Local TPS**: community benchmarks (llama.cpp, MLX) — replace with your own measurements for accuracy
+
+## Website embedding
+
+The app works as a standalone HTML file and can be embedded on websites:
+
+**Option 1: Direct link** — Point your About page to `index.html`:
+```html
+<a href="./index.html">View AI Model Cost Index</a>
+<!-- or -->
+<a href="https://example.com/ai-cost-index/index.html">View AI Model Cost Index</a>
+```
+
+**Option 2: Embedded iframe** — Embed as an iframe (note: localStorage for API key settings will not be available in restricted iframes):
+```html
+<iframe src="./index.html" width="100%" height="800px" frameborder="0"></iframe>
+```
+
+**Requirements:**
+- Served over HTTPS for production websites
+- No external dependencies beyond CDN (React, Babel from unpkg.com)
+- API key settings use localStorage (won't work in sandboxed iframes with restrictive policies)
+- Works in all modern browsers
 
 ## Contributing
 
